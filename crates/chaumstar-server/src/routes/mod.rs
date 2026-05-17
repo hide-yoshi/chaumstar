@@ -14,6 +14,7 @@ mod health;
 mod keysets;
 mod mints;
 mod reviews;
+mod transparency;
 
 pub fn build_router(state: AppState) -> Router {
     let mut router = Router::new()
@@ -23,6 +24,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/mints", post(mints::create))
         .route("/api/v1/reviews", post(reviews::create).get(reviews::list))
         .route("/api/v1/reviews/{hpk}", get(reviews::get_one))
+        .route("/api/v1/registry-key", get(transparency::registry_key))
+        .route("/api/v1/sth", get(transparency::sth))
         .with_state(state);
 
     // Optional static-asset serving for the SPA. When CHAUMSTAR_STATIC_DIR is

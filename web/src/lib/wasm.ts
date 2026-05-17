@@ -6,17 +6,22 @@ import init, {
 	mintStart as wasmMintStart,
 	protocolVersion as wasmProtocolVersion,
 	publishReview as wasmPublishReview,
-	verifyProof as wasmVerifyProof
+	verifyInclusion as wasmVerifyInclusion,
+	verifyProof as wasmVerifyProof,
+	verifySth as wasmVerifySth
 } from 'chaumstar-wasm';
 import type {
 	Credential,
-	MintRequest,
+	DisclosureMask,
+	InclusionProof,
+	MintContext,
 	MintResponse,
 	MintStartResult,
 	MintState,
 	PublicKeyset,
 	ReviewBody,
-	ReviewPayload
+	ReviewPayload,
+	Sth
 } from './types';
 
 let ready: Promise<void> | null = null;
@@ -35,11 +40,10 @@ export async function protocolVersion(): Promise<string> {
 
 export async function mintStart(
 	keyset: PublicKeyset,
-	merchant_id: string,
-	issued_at: string
+	ctx: MintContext
 ): Promise<MintStartResult> {
 	await ensureWasm();
-	return wasmMintStart(keyset, merchant_id, issued_at) as MintStartResult;
+	return wasmMintStart(keyset, ctx) as MintStartResult;
 }
 
 export async function mintFinish(
@@ -52,10 +56,11 @@ export async function mintFinish(
 
 export async function publishReview(
 	credential: Credential,
-	body: ReviewBody
+	body: ReviewBody,
+	mask: DisclosureMask
 ): Promise<ReviewPayload> {
 	await ensureWasm();
-	return wasmPublishReview(credential, body) as ReviewPayload;
+	return wasmPublishReview(credential, body, mask) as ReviewPayload;
 }
 
 export async function verifyProof(
@@ -64,4 +69,18 @@ export async function verifyProof(
 ): Promise<void> {
 	await ensureWasm();
 	wasmVerifyProof(payload, keyset);
+}
+
+export async function verifySth(sth: Sth, registryPubkeyHex: string): Promise<void> {
+	await ensureWasm();
+	wasmVerifySth(sth, registryPubkeyHex);
+}
+
+export async function verifyInclusion(
+	payload: ReviewPayload,
+	proof: InclusionProof,
+	sth: Sth
+): Promise<void> {
+	await ensureWasm();
+	wasmVerifyInclusion(payload, proof, sth);
 }

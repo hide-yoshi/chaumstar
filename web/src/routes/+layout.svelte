@@ -12,10 +12,10 @@
 	let lastError = $state<string>('');
 
 	const personas = [
-		{ slug: 'cafe', label: 'cafe' },
-		{ slug: 'alice', label: 'alice' },
-		{ slug: 'bob', label: 'bob' },
-		{ slug: 'eve', label: 'eve' }
+		{ slug: 'cafe', label: 'cafe', role: '店' },
+		{ slug: 'alice', label: 'alice', role: 'レビュアー' },
+		{ slug: 'bob', label: 'bob', role: '読者' },
+		{ slug: 'eve', label: 'eve', role: '攻撃者' }
 	];
 
 	function isActive(slug: string): boolean {
@@ -40,7 +40,10 @@
 	<a class="logo" href="/">chaumstar<span class="dot">.</span></a>
 	<nav>
 		{#each personas as p (p.slug)}
-			<a href={`/${p.slug}/`} class:active={isActive(p.slug)}>{p.label}</a>
+			<a href={`/${p.slug}/`} class:active={isActive(p.slug)}>
+				<span class="nm">{p.label}</span>
+				<span class="role">{p.role}</span>
+			</a>
 		{/each}
 	</nav>
 </header>
@@ -81,6 +84,19 @@
 		text-transform: lowercase;
 		font-size: 12px;
 		text-decoration: none;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1px;
+		line-height: 1.2;
+	}
+	nav a .role {
+		font-size: 10px;
+		color: var(--fg-dim);
+		letter-spacing: 0.05em;
+	}
+	nav a.active .role {
+		color: var(--fg-muted);
 	}
 	nav a:last-child {
 		border-right: none;
@@ -92,11 +108,34 @@
 	}
 	.status-bar {
 		border-bottom: 1px solid var(--border);
-		padding: 6px 28px;
-		font-size: 11px;
+		padding: 4px 28px;
+		font-size: 9.5px;
+		letter-spacing: 0.04em;
 		color: var(--fg-dim);
+		opacity: 0.55;
 		display: flex;
-		gap: 18px;
+		gap: 14px;
 		flex-wrap: wrap;
+	}
+
+	@media (max-width: 720px) {
+		header {
+			padding: 10px 14px;
+		}
+		.logo {
+			font-size: 13px;
+		}
+		nav a {
+			padding: 4px 8px;
+			font-size: 11px;
+		}
+		nav a .role {
+			font-size: 9px;
+		}
+		.status-bar {
+			padding: 3px 14px;
+			gap: 10px;
+			font-size: 8.5px;
+		}
 	}
 </style>

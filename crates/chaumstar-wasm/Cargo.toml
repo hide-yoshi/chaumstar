@@ -18,3 +18,4 @@ serde-wasm-bindgen.workspace = true
 getrandom.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+hex.workspace = true

@@ -50,8 +50,8 @@ impl Issuer {
     }
 
     /// Blind-sign a mint request from a wallet. Validates that the request
-    /// targets this issuer and merchant, then runs BBS+ blind signing over
-    /// `(hpk_commitment, merchant_id, issued_at)`.
+    /// targets this issuer/merchant, then runs BBS+ blind signing over
+    /// `(hpk_commitment, merchant_id, issued_at, purchase_tier, product_category)`.
     pub fn blind_sign(&self, request: &MintRequest) -> Result<MintResponse, Error> {
         if request.issuer_id != self.issuer_id {
             return Err(Error::InvalidInput(format!(
@@ -72,6 +72,8 @@ impl Issuer {
         let revealed_messages: Vec<Vec<u8>> = vec![
             request.merchant_id.as_bytes().to_vec(),
             request.issued_at.as_bytes().to_vec(),
+            request.purchase_tier.as_bytes().to_vec(),
+            request.product_category.as_bytes().to_vec(),
         ];
 
         let blind_sig = BlindSignature::<BBSplus<Cs>>::blind_sign(

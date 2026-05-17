@@ -1,16 +1,18 @@
 :root {
-	--bg: #0e0e0e;
-	--bg-soft: #161616;
-	--border: rgba(255, 255, 255, 0.07);
-	--border-strong: rgba(255, 255, 255, 0.14);
-	--fg: #e8e8e8;
-	--fg-muted: #808080;
-	--fg-dim: #5a5a5a;
-	--accent: #b23a28;
-	--accent-soft: #5a1d14;
-	--ok: #7cffa9;
-	--warn: #e8c547;
-	--err: #ff6b6b;
+	/* chalkboard café palette */
+	--bg: #1f2620;
+	--bg-soft: #2c3530;
+	--bg-deepest: #181d1a;
+	--border: rgba(240, 232, 212, 0.10);
+	--border-strong: rgba(240, 232, 212, 0.22);
+	--fg: #f0e8d4;
+	--fg-muted: #b8a988;
+	--fg-dim: #8a7e68;
+	--accent: #e8b25c;
+	--accent-soft: #6b4f1f;
+	--ok: #9ec48a;
+	--warn: #dca860;
+	--err: #d97861;
 }
 
 * {
@@ -23,11 +25,20 @@ html,
 body {
 	background: var(--bg);
 	color: var(--fg);
-	font-family: 'JetBrains Mono', ui-monospace, monospace;
+	font-family:
+		-apple-system,
+		BlinkMacSystemFont,
+		'Inter',
+		'Helvetica Neue',
+		'Hiragino Sans',
+		'Hiragino Kaku Gothic ProN',
+		'Yu Gothic',
+		'Noto Sans JP',
+		sans-serif;
 	font-size: 14px;
-	line-height: 1.6;
+	line-height: 1.65;
 	font-weight: 400;
-	letter-spacing: -0.005em;
+	letter-spacing: -0.003em;
 	min-height: 100vh;
 	-webkit-font-smoothing: antialiased;
 }
@@ -53,6 +64,7 @@ select {
 	background: var(--bg-soft);
 	border: 1px solid var(--border);
 	padding: 8px 12px;
+	border-radius: 2px;
 }
 
 input:focus,
@@ -66,6 +78,12 @@ textarea {
 	resize: vertical;
 }
 
+code,
+.mono {
+	font-family: 'JetBrains Mono', ui-monospace, monospace;
+	font-size: 0.94em;
+}
+
 /* Reusable building blocks */
 .btn {
 	display: inline-block;
@@ -73,7 +91,8 @@ textarea {
 	border: 1px solid var(--border-strong);
 	color: var(--fg);
 	cursor: pointer;
-	transition: background 0.12s;
+	transition: background 0.12s, border-color 0.12s;
+	border-radius: 2px;
 }
 .btn:hover {
 	background: var(--bg-soft);
@@ -83,7 +102,7 @@ textarea {
 	color: var(--accent);
 }
 .btn.primary:hover {
-	background: var(--accent-soft);
+	background: rgba(232, 178, 92, 0.12);
 }
 .btn:disabled {
 	opacity: 0.4;
@@ -92,13 +111,13 @@ textarea {
 
 .kicker {
 	font-size: 11px;
-	letter-spacing: 0.2em;
+	letter-spacing: 0.18em;
 	color: var(--fg-dim);
 	text-transform: uppercase;
 }
 
 .title {
-	font-size: 30px;
+	font-size: 32px;
 	font-weight: 600;
 	letter-spacing: -0.025em;
 	margin-bottom: 10px;
@@ -109,8 +128,9 @@ textarea {
 
 .lede {
 	color: var(--fg-muted);
-	font-size: 14px;
-	max-width: 520px;
+	font-size: 15px;
+	max-width: 580px;
+	line-height: 1.72;
 }
 
 .divider {
@@ -159,4 +179,20 @@ textarea {
 }
 .err {
 	color: var(--err);
+}
+
+@media (max-width: 720px) {
+	html,
+	body {
+		font-size: 13.5px;
+	}
+	.title {
+		font-size: 24px;
+	}
+	.lede {
+		font-size: 14px;
+	}
+	.divider {
+		margin: 24px 0;
+	}
 }

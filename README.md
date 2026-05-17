@@ -18,6 +18,17 @@ chaumstar is a protocol + reference implementation for publishing reviews where:
 Built on **BBS+ Anonymous Credentials** over BLS12-381, following the IRTF
 CFRG draft `draft-irtf-cfrg-bbs-signatures`.
 
+Wire-format is currently **chaumstar/0.3**. The credential carries five signed
+attributes: `hpk`, `merchant_id`, `issued_at` (always revealed), plus
+`purchase_tier` and `product_category` which the reviewer can choose to
+selectively disclose at publish time.
+
+The Registry maintains an append-only RFC 6962 Merkle log of published
+reviews and signs the tree head with a per-process Ed25519 key. Readers
+fetch inclusion proofs alongside each review and verify locally — the
+Registry cannot silently drop or rewrite a review without the receipt
+becoming a proof of misbehaviour.
+
 ## Documents
 
 | Doc | Content |

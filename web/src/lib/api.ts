@@ -1,4 +1,13 @@
-import type { MintRequest, MintResponse, PublicKeyset, ReviewPayload } from './types';
+import type {
+	MintRequest,
+	MintResponse,
+	PublicKeyset,
+	RegistryKeyResponse,
+	ReviewListResponse,
+	ReviewPayload,
+	ReviewWithProofAndSth,
+	Sth
+} from './types';
 
 const API = '/api/v1';
 
@@ -42,7 +51,7 @@ export async function postMint(req: MintRequest): Promise<MintResponse> {
 	return r.json();
 }
 
-export async function postReview(payload: ReviewPayload): Promise<ReviewPayload> {
+export async function postReview(payload: ReviewPayload): Promise<ReviewWithProofAndSth> {
 	const r = await fetch(`${API}/reviews`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
@@ -52,7 +61,7 @@ export async function postReview(payload: ReviewPayload): Promise<ReviewPayload>
 	return r.json();
 }
 
-export async function listReviews(): Promise<ReviewPayload[]> {
+export async function listReviews(): Promise<ReviewListResponse> {
 	const r = await fetch(`${API}/reviews`);
 	await failOnError(r, 'GET /reviews');
 	return r.json();
@@ -61,5 +70,17 @@ export async function listReviews(): Promise<ReviewPayload[]> {
 export async function getHealth(): Promise<{ status: string; version: string }> {
 	const r = await fetch(`${API}/health`);
 	await failOnError(r, 'GET /health');
+	return r.json();
+}
+
+export async function getRegistryKey(): Promise<RegistryKeyResponse> {
+	const r = await fetch(`${API}/registry-key`);
+	await failOnError(r, 'GET /registry-key');
+	return r.json();
+}
+
+export async function getSth(): Promise<Sth> {
+	const r = await fetch(`${API}/sth`);
+	await failOnError(r, 'GET /sth');
 	return r.json();
 }

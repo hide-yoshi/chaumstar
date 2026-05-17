@@ -4,6 +4,7 @@ use ed25519_dalek::{Signature as EdSig, Signer, SigningKey, Verifier, VerifyingK
 use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 
+use crate::attrs::{DisclosureMask, MintContext};
 use crate::credential::{Credential, MintRequest, MintResponse, MintState};
 use crate::error::{Error, VerifyError};
 use crate::internal::{
@@ -17,8 +18,7 @@ use crate::registry::Registry;
 /// to BBS+, and produce a [`MintRequest`] for the issuer.
 pub fn mint_start(
     keyset: &PublicKeyset,
-    merchant_id: &str,
-    issued_at: &str,
+    ctx: &MintContext,
 ) -> Result<(MintState, MintRequest), Error> {
     let mut rng = OsRng;
     let hsk = SigningKey::generate(&mut rng);
@@ -30,8 +30,10 @@ pub fn mint_start(
 
     let mint_request = MintRequest {
         issuer_id: keyset.issuer_id.clone(),
-        merchant_id: merchant_id.to_string(),
-        issued_at: issued_at.to_string(),
+        merchant_id: ctx.merchant_id.clone(),
+        issued_at: ctx.issued_at.clone(),
+        purchase_tier: ctx.purchase_tier,
+        product_category: ctx.product_category,
         keyset_id: keyset.keyset_id.clone(),
         commitment_bytes: commitment.to_bytes(),
     };
@@ -41,8 +43,10 @@ pub fn mint_start(
         hpk_bytes,
         blind_factor_bytes: blind_factor.to_bytes(),
         keyset: keyset.clone(),
-        merchant_id: merchant_id.to_string(),
-        issued_at: issued_at.to_string(),
+        merchant_id: ctx.merchant_id.clone(),
+        issued_at: ctx.issued_at.clone(),
+        purchase_tier: ctx.purchase_tier,
+        product_category: ctx.product_category,
     };
 
     Ok((mint_state, mint_request))
@@ -69,6 +73,8 @@ pub fn mint_finish(state: MintState, response: MintResponse) -> Result<Credentia
     let revealed_messages: Vec<Vec<u8>> = vec![
         state.merchant_id.as_bytes().to_vec(),
         state.issued_at.as_bytes().to_vec(),
+        state.purchase_tier.as_bytes().to_vec(),
+        state.product_category.as_bytes().to_vec(),
     ];
     let committed_messages: Vec<Vec<u8>> = vec![state.hpk_bytes.to_vec()];
 
@@ -89,13 +95,32 @@ pub fn mint_finish(state: MintState, response: MintResponse) -> Result<Credentia
         keyset: state.keyset,
         merchant_id: state.merchant_id,
         issued_at: state.issued_at,
+        purchase_tier: state.purchase_tier,
+        product_category: state.product_category,
     })
 }
 
 /// Publish a review using a credential. Generates the BBS+ presentation proof
 /// and the Ed25519 holder signature, both bound to the canonical review body.
-pub fn publish(credential: &Credential, body: ReviewBody) -> Result<ReviewPayload, Error> {
-    let m_jcs = canonical_message(&body, &credential.hpk, &credential.keyset.keyset_id)?;
+/// The `mask` controls which of the two reviewer-controlled attributes are
+/// disclosed in the published payload.
+pub fn publish(
+    credential: &Credential,
+    body: ReviewBody,
+    mask: DisclosureMask,
+) -> Result<ReviewPayload, Error> {
+    let disclosed_tier = mask.disclose_tier.then_some(credential.purchase_tier);
+    let disclosed_category = mask
+        .disclose_category
+        .then_some(credential.product_category);
+
+    let m_jcs = canonical_message(
+        &body,
+        &credential.hpk,
+        &credential.keyset.keyset_id,
+        disclosed_tier,
+        disclosed_category,
+    )?;
 
     // Ed25519 sign the canonical message.
     let hsk = SigningKey::from_bytes(&credential.hsk);
@@ -109,10 +134,12 @@ pub fn publish(credential: &Credential, body: ReviewBody) -> Result<ReviewPayloa
     let revealed_messages: Vec<Vec<u8>> = vec![
         credential.merchant_id.as_bytes().to_vec(),
         credential.issued_at.as_bytes().to_vec(),
+        credential.purchase_tier.as_bytes().to_vec(),
+        credential.product_category.as_bytes().to_vec(),
     ];
     let committed_messages: Vec<Vec<u8>> = vec![credential.hpk.to_vec()];
 
-    let disclosed_indexes: [usize; 2] = [0, 1];
+    let disclosed_indexes = build_disclosed_indexes(mask);
     let disclosed_commitment_indexes: [usize; 1] = [0];
 
     let proof = PoKSignature::<BBSplus<Cs>>::blind_proof_gen(
@@ -134,17 +161,16 @@ pub fn publish(credential: &Credential, body: ReviewBody) -> Result<ReviewPayloa
             hpk: credential.hpk,
             keyset_id: credential.keyset.keyset_id.clone(),
             bbs_proof: proof.to_bytes(),
+            purchase_tier: disclosed_tier,
+            product_category: disclosed_category,
         },
         sig: sig_ed.to_bytes(),
     })
 }
 
-/// Verify the cryptographic parts of a [`ReviewPayload`] (Ed25519 sig,
-/// BBS+ presentation proof, canonical-message binding). Does NOT consult any
+/// Verify the cryptographic parts of a [`ReviewPayload`] (Ed25519 sig, BBS+
+/// presentation proof, canonical-message binding). Does NOT consult any
 /// nullifier registry — use [`verify`] for that.
-///
-/// Suitable for client-side (browser) verification where the reader has the
-/// payload and the issuer's public keyset but no shared registry state.
 pub fn verify_proof_only(
     payload: &ReviewPayload,
     keyset: &PublicKeyset,
@@ -153,11 +179,15 @@ pub fn verify_proof_only(
         return Err(VerifyError::KeysetMismatch);
     }
 
-    // Recompute the canonical message and verify the Ed25519 holder sig.
+    let disclosed_tier = payload.credential_proof.purchase_tier;
+    let disclosed_category = payload.credential_proof.product_category;
+
     let m_jcs = canonical_message(
         &payload.review_body,
         &payload.credential_proof.hpk,
         &keyset.keyset_id,
+        disclosed_tier,
+        disclosed_category,
     )
     .map_err(|e| VerifyError::Malformed(format!("{e}")))?;
 
@@ -167,7 +197,6 @@ pub fn verify_proof_only(
     hpk.verify(&m_jcs, &ed_sig)
         .map_err(|_| VerifyError::HolderSignatureInvalid)?;
 
-    // Verify the BBS+ presentation proof, bound to the same canonical message.
     let pk = keyset
         .pubkey()
         .map_err(|_| VerifyError::Malformed("invalid keyset public key".into()))?;
@@ -175,21 +204,33 @@ pub fn verify_proof_only(
         .map_err(|_| VerifyError::ProofInvalid)?;
 
     let presentation_header = Sha256::digest(&m_jcs).to_vec();
-    let revealed_messages: Vec<Vec<u8>> = vec![
+
+    // Rebuild disclosed_messages in the canonical [merchant, issued, tier?, category?] order.
+    let mut disclosed_messages: Vec<Vec<u8>> = vec![
         payload.review_body.merchant_id.as_bytes().to_vec(),
         payload.review_body.issued_at.as_bytes().to_vec(),
     ];
+    if let Some(t) = disclosed_tier {
+        disclosed_messages.push(t.as_bytes().to_vec());
+    }
+    if let Some(c) = disclosed_category {
+        disclosed_messages.push(c.as_bytes().to_vec());
+    }
     let disclosed_committed_messages: Vec<Vec<u8>> = vec![payload.credential_proof.hpk.to_vec()];
-    let disclosed_indexes: [usize; 2] = [0, 1];
+
+    let disclosed_indexes =
+        build_disclosed_indexes_from_options(disclosed_tier, disclosed_category);
     let disclosed_commitment_indexes: [usize; 1] = [0];
+    // Total message vector length is fixed at 4 (merchant, issued, tier, category).
+    let total_messages = 4usize;
 
     proof
         .blind_proof_verify(
             &pk,
             Some(HEADER),
             Some(&presentation_header),
-            Some(revealed_messages.len()),
-            Some(&revealed_messages),
+            Some(total_messages),
+            Some(&disclosed_messages),
             Some(&disclosed_committed_messages),
             Some(&disclosed_indexes),
             Some(&disclosed_commitment_indexes),
@@ -213,4 +254,70 @@ pub fn verify<R: Registry>(
     }
     registry.insert(payload.credential_proof.hpk);
     Ok(())
+}
+
+fn build_disclosed_indexes(mask: DisclosureMask) -> Vec<usize> {
+    build_disclosed_indexes_from_options(
+        mask.disclose_tier.then_some(()),
+        mask.disclose_category.then_some(()),
+    )
+    .to_vec()
+}
+
+fn build_disclosed_indexes_from_options<A, B>(tier: Option<A>, category: Option<B>) -> Vec<usize> {
+    let mut out = vec![0usize, 1];
+    if tier.is_some() {
+        out.push(2);
+    }
+    if category.is_some() {
+        out.push(3);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::attrs::PurchaseTier;
+
+    #[test]
+    fn disclosed_indexes_for_each_mask() {
+        assert_eq!(
+            build_disclosed_indexes(DisclosureMask::default()),
+            vec![0, 1]
+        );
+        assert_eq!(
+            build_disclosed_indexes(DisclosureMask {
+                disclose_tier: true,
+                disclose_category: false
+            }),
+            vec![0, 1, 2]
+        );
+        assert_eq!(
+            build_disclosed_indexes(DisclosureMask {
+                disclose_tier: false,
+                disclose_category: true
+            }),
+            vec![0, 1, 3]
+        );
+        assert_eq!(
+            build_disclosed_indexes(DisclosureMask {
+                disclose_tier: true,
+                disclose_category: true
+            }),
+            vec![0, 1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn disclosed_indexes_from_options_match_mask() {
+        assert_eq!(
+            build_disclosed_indexes_from_options::<PurchaseTier, &str>(None, None),
+            vec![0, 1]
+        );
+        assert_eq!(
+            build_disclosed_indexes_from_options(Some(PurchaseTier::Mid), Some("x")),
+            vec![0, 1, 2, 3]
+        );
+    }
 }

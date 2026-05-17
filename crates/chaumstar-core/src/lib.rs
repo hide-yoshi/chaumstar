@@ -6,8 +6,9 @@
 //!
 //! See `PROTOCOL.md`, `CRYPTO.md` in the workspace root for the specification.
 
-pub const PROTOCOL_VERSION: &str = "chaumstar/0.1";
+pub const PROTOCOL_VERSION: &str = "chaumstar/0.3";
 
+mod attrs;
 mod credential;
 mod error;
 mod flow;
@@ -16,7 +17,9 @@ mod issuer;
 mod keyset;
 mod payload;
 mod registry;
+pub mod transparency;
 
+pub use attrs::{DisclosureMask, MintContext, ProductCategory, PurchaseTier};
 pub use credential::{Credential, MintRequest, MintResponse, MintState};
 pub use error::{Error, VerifyError};
 pub use flow::{mint_finish, mint_start, publish, verify, verify_proof_only};
@@ -24,3 +27,4 @@ pub use issuer::Issuer;
 pub use keyset::{KeysetId, PublicKeyset};
 pub use payload::{CredentialProof, ReviewBody, ReviewPayload};
 pub use registry::{MemoryRegistry, Registry};
+pub use transparency::{HashHex, InclusionProof, Sth, leaf_hash, leaf_hash_bytes};

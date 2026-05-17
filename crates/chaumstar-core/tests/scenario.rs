@@ -1,11 +1,14 @@
-//! End-to-end scenario tests for chaumstar-core.
+//! End-to-end scenario tests for chaumstar-core (v0.2 with selective disclosure).
 //!
-//! These tests drive the public API design from the outside in.
-//! Acceptance criteria: a reviewer can mint a credential, publish a review,
-//! and a reader can verify it — while four attack classes are detected.
+//! Acceptance criteria: a reviewer can mint a credential with attestable
+//! attributes (purchase_tier, product_category), then publish a review choosing
+//! which attributes to disclose. A reader can independently verify the proof.
+//! Several attack classes — including reviewer lying about a disclosed value —
+//! are detected.
 
 use chaumstar_core::{
-    Issuer, MemoryRegistry, ReviewBody, VerifyError, mint_finish, mint_start, publish, verify,
+    DisclosureMask, Issuer, MemoryRegistry, MintContext, ProductCategory, PurchaseTier, ReviewBody,
+    VerifyError, mint_finish, mint_start, publish, verify,
 };
 
 const ISSUER_ID: &str = "bean-and-beam-coffee";
@@ -24,24 +27,106 @@ fn make_review_body(text: &str, rating: u8) -> ReviewBody {
     }
 }
 
+fn mint_ctx(tier: PurchaseTier, category: ProductCategory) -> MintContext {
+    MintContext {
+        merchant_id: MERCHANT_ID.into(),
+        issued_at: ISSUED_AT.into(),
+        purchase_tier: tier,
+        product_category: category,
+    }
+}
+
 #[test]
-fn happy_path_mint_publish_verify() {
+fn happy_path_mint_publish_verify_with_no_disclosure() {
     let issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
     let keyset = issuer.public_keyset();
 
-    // Mint
-    let (mint_state, mint_request) =
-        mint_start(&keyset, MERCHANT_ID, ISSUED_AT).expect("mint_start");
-    let mint_response = issuer.blind_sign(&mint_request).expect("issuer.blind_sign");
-    let credential = mint_finish(mint_state, mint_response).expect("mint_finish");
+    let (state, req) = mint_start(
+        &keyset,
+        &mint_ctx(PurchaseTier::Mid, ProductCategory::Drinks),
+    )
+    .expect("mint_start");
+    let resp = issuer.blind_sign(&req).expect("blind_sign");
+    let credential = mint_finish(state, resp).expect("mint_finish");
 
-    // Publish
-    let body = make_review_body("美味しかった", 5);
-    let payload = publish(&credential, body).expect("publish");
+    let payload = publish(
+        &credential,
+        make_review_body("美味しかった", 5),
+        DisclosureMask::default(),
+    )
+    .expect("publish");
 
-    // Verify
-    let mut registry = MemoryRegistry::default();
-    verify(&payload, &keyset, &mut registry).expect("verify");
+    assert!(payload.credential_proof.purchase_tier.is_none());
+    assert!(payload.credential_proof.product_category.is_none());
+
+    verify(&payload, &keyset, &mut MemoryRegistry::default()).expect("verify");
+}
+
+#[test]
+fn publish_disclosing_only_tier() {
+    let issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
+    let keyset = issuer.public_keyset();
+
+    let (state, req) = mint_start(
+        &keyset,
+        &mint_ctx(PurchaseTier::High, ProductCategory::Food),
+    )
+    .expect("mint_start");
+    let resp = issuer.blind_sign(&req).unwrap();
+    let credential = mint_finish(state, resp).unwrap();
+
+    let payload = publish(
+        &credential,
+        make_review_body("最高", 5),
+        DisclosureMask {
+            disclose_tier: true,
+            disclose_category: false,
+        },
+    )
+    .expect("publish");
+
+    assert_eq!(
+        payload.credential_proof.purchase_tier,
+        Some(PurchaseTier::High)
+    );
+    assert!(payload.credential_proof.product_category.is_none());
+
+    verify(&payload, &keyset, &mut MemoryRegistry::default()).expect("verify");
+}
+
+#[test]
+fn publish_disclosing_both_attributes() {
+    let issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
+    let keyset = issuer.public_keyset();
+
+    let (state, req) = mint_start(
+        &keyset,
+        &mint_ctx(PurchaseTier::Low, ProductCategory::Merch),
+    )
+    .expect("mint_start");
+    let resp = issuer.blind_sign(&req).unwrap();
+    let credential = mint_finish(state, resp).unwrap();
+
+    let payload = publish(
+        &credential,
+        make_review_body("ok", 3),
+        DisclosureMask {
+            disclose_tier: true,
+            disclose_category: true,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        payload.credential_proof.purchase_tier,
+        Some(PurchaseTier::Low)
+    );
+    assert_eq!(
+        payload.credential_proof.product_category,
+        Some(ProductCategory::Merch)
+    );
+
+    verify(&payload, &keyset, &mut MemoryRegistry::default()).expect("verify");
 }
 
 #[test]
@@ -50,20 +135,32 @@ fn double_review_is_rejected() {
     let keyset = issuer.public_keyset();
     let mut registry = MemoryRegistry::default();
 
-    let (mint_state, mint_request) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
-    let mint_response = issuer.blind_sign(&mint_request).unwrap();
-    let credential = mint_finish(mint_state, mint_response).unwrap();
+    let (state, req) = mint_start(
+        &keyset,
+        &mint_ctx(PurchaseTier::Mid, ProductCategory::Drinks),
+    )
+    .unwrap();
+    let resp = issuer.blind_sign(&req).unwrap();
+    let credential = mint_finish(state, resp).unwrap();
 
-    // First publish — succeeds
-    let payload_1 = publish(&credential, make_review_body("ok", 4)).unwrap();
-    verify(&payload_1, &keyset, &mut registry).expect("first verify");
+    let p1 = publish(
+        &credential,
+        make_review_body("ok", 4),
+        DisclosureMask::default(),
+    )
+    .unwrap();
+    verify(&p1, &keyset, &mut registry).expect("first verify");
 
-    // Second publish with same credential — must be rejected
-    let payload_2 = publish(&credential, make_review_body("again", 3)).unwrap();
-    let err = verify(&payload_2, &keyset, &mut registry).unwrap_err();
+    let p2 = publish(
+        &credential,
+        make_review_body("again", 3),
+        DisclosureMask::default(),
+    )
+    .unwrap();
+    let err = verify(&p2, &keyset, &mut registry).unwrap_err();
     assert!(
         matches!(err, VerifyError::AlreadyUsed),
-        "expected AlreadyUsed, got {err:?}",
+        "expected AlreadyUsed, got {err:?}"
     );
 }
 
@@ -72,13 +169,21 @@ fn tampered_review_body_is_rejected() {
     let issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
     let keyset = issuer.public_keyset();
 
-    let (mint_state, mint_request) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
-    let mint_response = issuer.blind_sign(&mint_request).unwrap();
-    let credential = mint_finish(mint_state, mint_response).unwrap();
+    let (state, req) = mint_start(
+        &keyset,
+        &mint_ctx(PurchaseTier::Mid, ProductCategory::Drinks),
+    )
+    .unwrap();
+    let resp = issuer.blind_sign(&req).unwrap();
+    let credential = mint_finish(state, resp).unwrap();
 
-    let mut payload = publish(&credential, make_review_body("great", 5)).unwrap();
-    // Tamper after signing
-    payload.review_body.text = "terrible".to_string();
+    let mut payload = publish(
+        &credential,
+        make_review_body("great", 5),
+        DisclosureMask::default(),
+    )
+    .unwrap();
+    payload.review_body.text = "terrible".into();
 
     let err = verify(&payload, &keyset, &mut MemoryRegistry::default()).unwrap_err();
     assert!(
@@ -86,55 +191,122 @@ fn tampered_review_body_is_rejected() {
             err,
             VerifyError::HolderSignatureInvalid | VerifyError::ProofInvalid
         ),
-        "expected HolderSignatureInvalid or ProofInvalid, got {err:?}",
+        "expected HolderSignatureInvalid or ProofInvalid, got {err:?}"
     );
 }
 
 #[test]
 fn forged_credential_is_rejected() {
-    // Eve makes a credential under her own issuer key but tries to publish
-    // a review under the *real* issuer's keyset.
-    let real_issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
-    let real_keyset = real_issuer.public_keyset();
+    let real = Issuer::generate(ISSUER_ID, MERCHANT_ID);
+    let real_ks = real.public_keyset();
 
-    let eve_issuer = Issuer::generate("eve-fake-coffee", MERCHANT_ID);
-    let eve_keyset = eve_issuer.public_keyset();
+    let eve = Issuer::generate("eve-fake-coffee", MERCHANT_ID);
+    let eve_ks = eve.public_keyset();
 
-    let (mint_state, mint_request) = mint_start(&eve_keyset, MERCHANT_ID, ISSUED_AT).unwrap();
-    let mint_response = eve_issuer.blind_sign(&mint_request).unwrap();
-    let eve_credential = mint_finish(mint_state, mint_response).unwrap();
+    let (state, req) = mint_start(
+        &eve_ks,
+        &mint_ctx(PurchaseTier::Mid, ProductCategory::Drinks),
+    )
+    .unwrap();
+    let resp = eve.blind_sign(&req).unwrap();
+    let cred = mint_finish(state, resp).unwrap();
+    let payload = publish(
+        &cred,
+        make_review_body("fake", 1),
+        DisclosureMask::default(),
+    )
+    .unwrap();
 
-    let payload = publish(&eve_credential, make_review_body("fake", 1)).unwrap();
-
-    // Verify against the real issuer's keyset
-    let err = verify(&payload, &real_keyset, &mut MemoryRegistry::default()).unwrap_err();
+    let err = verify(&payload, &real_ks, &mut MemoryRegistry::default()).unwrap_err();
     assert!(
         matches!(err, VerifyError::ProofInvalid | VerifyError::KeysetMismatch),
-        "expected ProofInvalid or KeysetMismatch, got {err:?}",
+        "expected ProofInvalid or KeysetMismatch, got {err:?}"
     );
 }
 
 #[test]
-fn wrong_merchant_id_in_payload_is_rejected() {
+fn lying_about_disclosed_tier_is_rejected() {
     let issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
     let keyset = issuer.public_keyset();
 
-    let (mint_state, mint_request) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
-    let mint_response = issuer.blind_sign(&mint_request).unwrap();
-    let credential = mint_finish(mint_state, mint_response).unwrap();
+    // Mint with tier = Mid
+    let (state, req) = mint_start(
+        &keyset,
+        &mint_ctx(PurchaseTier::Mid, ProductCategory::Drinks),
+    )
+    .unwrap();
+    let resp = issuer.blind_sign(&req).unwrap();
+    let credential = mint_finish(state, resp).unwrap();
 
-    let mut payload = publish(&credential, make_review_body("ok", 5)).unwrap();
-    // Pretend the review was for a different merchant after the fact
-    payload.review_body.merchant_id = "different-store".to_string();
+    // Publish disclosing tier truthfully
+    let mut payload = publish(
+        &credential,
+        make_review_body("ok", 4),
+        DisclosureMask {
+            disclose_tier: true,
+            disclose_category: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        payload.credential_proof.purchase_tier,
+        Some(PurchaseTier::Mid)
+    );
+
+    // Eve rewrites the disclosed tier from Mid → High
+    payload.credential_proof.purchase_tier = Some(PurchaseTier::High);
 
     let err = verify(&payload, &keyset, &mut MemoryRegistry::default()).unwrap_err();
     assert!(
         matches!(
             err,
-            VerifyError::HolderSignatureInvalid
-                | VerifyError::ProofInvalid
-                | VerifyError::KeysetMismatch
+            VerifyError::ProofInvalid | VerifyError::HolderSignatureInvalid
         ),
-        "expected verification failure, got {err:?}",
+        "expected ProofInvalid or HolderSignatureInvalid, got {err:?}"
     );
+}
+
+#[test]
+fn pretending_undisclosed_attribute_was_disclosed_is_rejected() {
+    let issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
+    let keyset = issuer.public_keyset();
+
+    let (state, req) = mint_start(
+        &keyset,
+        &mint_ctx(PurchaseTier::Mid, ProductCategory::Drinks),
+    )
+    .unwrap();
+    let resp = issuer.blind_sign(&req).unwrap();
+    let credential = mint_finish(state, resp).unwrap();
+
+    // Publish without disclosing anything
+    let mut payload = publish(
+        &credential,
+        make_review_body("ok", 4),
+        DisclosureMask::default(),
+    )
+    .unwrap();
+    assert!(payload.credential_proof.purchase_tier.is_none());
+
+    // Eve inserts a fabricated tier into the payload after the fact
+    payload.credential_proof.purchase_tier = Some(PurchaseTier::High);
+
+    let err = verify(&payload, &keyset, &mut MemoryRegistry::default()).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            VerifyError::ProofInvalid | VerifyError::HolderSignatureInvalid
+        ),
+        "expected ProofInvalid or HolderSignatureInvalid, got {err:?}"
+    );
+}
+
+#[test]
+fn purchase_tier_from_yen_buckets_correctly() {
+    assert_eq!(PurchaseTier::from_yen(0), PurchaseTier::Low);
+    assert_eq!(PurchaseTier::from_yen(999), PurchaseTier::Low);
+    assert_eq!(PurchaseTier::from_yen(1_000), PurchaseTier::Mid);
+    assert_eq!(PurchaseTier::from_yen(4_999), PurchaseTier::Mid);
+    assert_eq!(PurchaseTier::from_yen(5_000), PurchaseTier::High);
+    assert_eq!(PurchaseTier::from_yen(99_999), PurchaseTier::High);
 }

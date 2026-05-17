@@ -1,6 +1,9 @@
-# chaumstar Demo — v0 (draft)
+# chaumstar Demo — v0.3 (draft)
 
 > Single-page web demo. "Hacker News に投稿された1分動画で何が起きてるか伝わる" を目標にする。
+>
+> - v0.2: **selective disclosure** (`purchase_tier` / `product_category`)
+> - v0.3: **Registry transparency log** (Merkle log + 署名付き STH + inclusion proof) で Registry 側の削除 / 改ざんを Reader が検出可能に
 
 ---
 
@@ -14,6 +17,8 @@
 - 同じ credential で2回レビューはできない (linkability via nullifier `hpk`)
 - レビュー本文の改ざんを Reader が検出できる (Ed25519 sig + presentation_header binding)
 - 偽の Issuer 鍵では credential が作れない (BBS+ proof verify against PK_m)
+- **Reviewer は属性を開示するか / 隠すか選べるが、値を改竄できない** (v0.2 selective disclosure)
+- **Registry の削除 / 改ざんを Reader が独立に検出できる** (v0.3 Merkle transparency log + 署名付き STH)
 
 このデモが**物語として伝える**こと:
 
@@ -87,28 +92,40 @@ Single-page で persona ボタンを切り替えながら flow を進める。
 ### 🏪 Cafe view
 
 - Issuer 公開鍵表示 (keyset list, BLS12-381 G₂ point)
-- "💰 お客様が会計しました" ボタン → 新規レシートQR を生成して画面に表示
+- **会計フォーム** (v0.2):
+  - `¥ amount` 入力 → 自動で `purchase_tier` 算出 (¥0-999 = low / ¥1,000-4,999 = mid / ¥5,000+ = high)
+  - `category` プルダウン (drinks / food / merch)
+  - "💰 mint trigger" ボタン → mint context が生成され、Alice 側で credential 取得可能に
 - Mint log: どんな request を受けたかを表示
   - **重要**: ここで `C_blind` (Pedersen commitment) しか見えないことを強調 →「Issuer は hpk を知らない」
-  - Mint log に保存される情報を明示 (`C_blind_i`, `blind_σ_i`, timestamp, 顧客 ID)
 
 ### 👩 Alice view
 
 - "📷 QR をスキャン" ボタン (実際にはモーダルでQRを表示してsimulate)
 - Wallet UI: 保有 credential 一覧
-  - 各 credential の `hpk`, `C`, `keyset_id` を表示
-- レビュー作成フォーム (rating: 1-5, text)
+  - 各 credential の `hpk`, `C`, `keyset_id`, `tier`, `category` を表示
+- レビュー作成フォーム:
+  - `rating` (1-5)
+  - `text`
+  - **Disclosure mask** checkboxes (v0.2):
+    - `[ ] reveal purchase_tier`  (デフォルト OFF)
+    - `[ ] reveal product_category`  (デフォルト OFF)
 - "📝 レビューを公開" ボタン
 - 操作ごとに**暗号ステップが右ペインに流れる** (Mint flow → Publish flow)
 
 ### 👨 Bob view
 
 - 公開レビュー一覧 (cafeに対するレビュー)
-  - "美味しかった ⭐⭐⭐⭐⭐ [✓ Verified Purchaser]"
+  - "美味しかった ⭐⭐⭐⭐⭐ [✓ Verified Purchaser] [tier: mid] [drinks]"
+  - 開示されてない属性は表示されない (reviewer の選択を尊重)
+- **Filter UI** (v0.2):
+  - `[ ] only show tier=high`
+  - `[ ] only show category=drinks`
 - 任意のレビューをクリック → 「🔍 検証ログ」がスライドオープン
   - ✓ Keyset resolved: kid_abc123 → PK_m (BLS12-381 G₂)
-  - ✓ BBS+ proof verified: issuer signed (hpk, merchant_id, issued_at)
-  - ✓ Presentation header binds proof to review body
+  - ✓ Disclosed indexes computed from payload: [0, 1, 2] (tier disclosed)
+  - ✓ BBS+ blind proof verified: issuer signed (hpk, merchant_id, issued_at, tier=mid)
+  - ✓ Presentation header binds proof to review body + disclosure
   - ✓ Ed25519 sig verified: review text untampered
   - ✓ Nullifier check: hpk unused in registry
   - **VALID**
@@ -215,6 +232,25 @@ Single-page で persona ボタンを切り替えながら flow を進める。
       The proof does not verify against issuer's public key PK_m.
       Only the holder of SK_m can issue valid BBS+ signatures
       that survive proof verification.
+```
+
+### Attack 4: Lying about disclosed attribute (v0.2)
+
+```
+[Eve]    実 tier=mid の credential を持っている。
+         payload.credential_proof.purchase_tier に "high" を捏造して投稿。
+         (BBS+ proof は元の tier=mid で生成されている)
+         
+         → POST /api/v1/reviews
+         → verifier rebuilds disclosed_messages = [merchant_id, issued_at, "high"]
+         → bbs_blind_proof_verify with disclosed "high"
+         → proof hash mismatch (proof was generated for "mid")
+         → FAIL
+         → REJECTED
+         
+表示: 🚫 Attribute claim invalid.
+      The disclosed purchase_tier does not match the BBS+ signed value.
+      Reviewers can choose what to reveal, not what to lie about.
 ```
 
 ---

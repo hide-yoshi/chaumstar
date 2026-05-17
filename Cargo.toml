@@ -39,6 +39,7 @@ axum = "0.8"
 tower-http = { version = "0.6", features = ["fs", "cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # WASM
 wasm-bindgen = "0.2"

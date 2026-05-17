@@ -6,8 +6,9 @@
 //! format change and requires a `chaumstar/0.x` version bump.
 
 use chaumstar_core::{
-    Credential, Issuer, KeysetId, MemoryRegistry, MintRequest, MintResponse, PublicKeyset,
-    ReviewBody, ReviewPayload, mint_finish, mint_start, publish, verify,
+    Credential, DisclosureMask, Issuer, KeysetId, MemoryRegistry, MintContext, MintRequest,
+    MintResponse, ProductCategory, PublicKeyset, PurchaseTier, ReviewBody, ReviewPayload,
+    mint_finish, mint_start, publish, verify,
 };
 
 const ISSUER_ID: &str = "bean-and-beam-coffee";
@@ -26,6 +27,15 @@ fn make_review_body() -> ReviewBody {
     }
 }
 
+fn mint_ctx() -> MintContext {
+    MintContext {
+        merchant_id: MERCHANT_ID.into(),
+        issued_at: ISSUED_AT.into(),
+        purchase_tier: PurchaseTier::Mid,
+        product_category: ProductCategory::Drinks,
+    }
+}
+
 struct Fixtures {
     issuer: Issuer,
     keyset: PublicKeyset,
@@ -38,10 +48,18 @@ struct Fixtures {
 fn fixtures() -> Fixtures {
     let issuer = Issuer::generate(ISSUER_ID, MERCHANT_ID);
     let keyset = issuer.public_keyset();
-    let (state, mint_request) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
+    let (state, mint_request) = mint_start(&keyset, &mint_ctx()).unwrap();
     let mint_response = issuer.blind_sign(&mint_request).unwrap();
     let credential = mint_finish(state, mint_response.clone()).unwrap();
-    let payload = publish(&credential, make_review_body()).unwrap();
+    let payload = publish(
+        &credential,
+        make_review_body(),
+        DisclosureMask {
+            disclose_tier: true,
+            disclose_category: false,
+        },
+    )
+    .unwrap();
     Fixtures {
         issuer,
         keyset,
@@ -106,7 +124,7 @@ fn mint_response_json_round_trip_still_finishes() {
 
     // And separately confirm the issuer still works after a response round-trip
     // by running a fresh mint end-to-end.
-    let (state, req) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
+    let (state, req) = mint_start(&keyset, &mint_ctx()).unwrap();
     let resp = issuer.blind_sign(&req).unwrap();
     let resp_json = serde_json::to_string(&resp).unwrap();
     let resp_parsed: MintResponse = serde_json::from_str(&resp_json).unwrap();
@@ -124,6 +142,8 @@ fn credential_json_round_trip_preserves_secret_material() {
     assert_eq!(parsed.blind_signature, credential.blind_signature);
     assert_eq!(parsed.merchant_id, credential.merchant_id);
     assert_eq!(parsed.issued_at, credential.issued_at);
+    assert_eq!(parsed.purchase_tier, credential.purchase_tier);
+    assert_eq!(parsed.product_category, credential.product_category);
     assert_eq!(parsed.keyset.keyset_id, credential.keyset.keyset_id);
 }
 
@@ -133,7 +153,7 @@ fn credential_round_trip_can_still_publish_and_verify() {
     let json = serde_json::to_string(&credential).unwrap();
     let parsed: Credential = serde_json::from_str(&json).unwrap();
 
-    let payload = publish(&parsed, make_review_body()).unwrap();
+    let payload = publish(&parsed, make_review_body(), DisclosureMask::default()).unwrap();
     verify(&payload, &parsed.keyset, &mut MemoryRegistry::default()).unwrap();
 }
 

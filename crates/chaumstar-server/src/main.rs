@@ -15,7 +15,7 @@ async fn main() {
 
     // Bootstrap: spin up one demo issuer / merchant pair.
     let state = AppState::new();
-    state.register_issuer(Issuer::generate("demo-issuer", "demo-merchant"));
+    state.register_issuer(Issuer::generate("Bean & Beam Coffee", "Bean & Beam 下北沢"));
 
     let app = build_router(state);
     let addr: SocketAddr = std::env::var("CHAUMSTAR_BIND")

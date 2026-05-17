@@ -9,10 +9,13 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use chaumstar_core::{
-    Issuer, MintResponse, PublicKeyset, ReviewBody, ReviewPayload, mint_finish, mint_start, publish,
+    DisclosureMask, InclusionProof, Issuer, MintContext, MintResponse, ProductCategory,
+    PublicKeyset, PurchaseTier, ReviewBody, ReviewPayload, Sth, leaf_hash, mint_finish, mint_start,
+    publish,
 };
 use chaumstar_server::{AppState, build_router};
 use http_body_util::BodyExt;
+use serde::Deserialize;
 use tower::ServiceExt;
 
 const ISSUER_ID: &str = "bean-and-beam-coffee";
@@ -28,6 +31,15 @@ fn make_review_body(text: &str, rating: u8) -> ReviewBody {
         issuer_id: ISSUER_ID.into(),
         issued_at: ISSUED_AT.into(),
         timestamp: REVIEW_TIMESTAMP.into(),
+    }
+}
+
+fn mint_ctx() -> MintContext {
+    MintContext {
+        merchant_id: MERCHANT_ID.into(),
+        issued_at: ISSUED_AT.into(),
+        purchase_tier: PurchaseTier::Mid,
+        product_category: ProductCategory::Drinks,
     }
 }
 
@@ -59,6 +71,35 @@ fn get(uri: &str) -> Request<Body> {
         .uri(uri)
         .body(Body::empty())
         .unwrap()
+}
+
+#[derive(Deserialize)]
+struct ReviewWithProof {
+    payload: ReviewPayload,
+    inclusion_proof: InclusionProof,
+}
+
+#[derive(Deserialize)]
+struct ReviewWithProofAndSth {
+    payload: ReviewPayload,
+    inclusion_proof: InclusionProof,
+    sth: Sth,
+}
+
+#[derive(Deserialize)]
+struct ReviewListResponse {
+    reviews: Vec<ReviewWithProof>,
+    sth: Sth,
+}
+
+#[derive(Deserialize)]
+struct RegistryKeyResponse {
+    public_key: String,
+}
+
+fn parse_registry_pubkey(s: &str) -> [u8; 32] {
+    let v = hex::decode(s).expect("hex");
+    v.try_into().expect("32 bytes")
 }
 
 #[tokio::test]
@@ -115,7 +156,7 @@ async fn mint_endpoint_returns_201_and_response_finishes_locally() {
     let keyset = state.first_public_keyset().unwrap();
     let app = build_router(state);
 
-    let (mint_state, mint_req) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
+    let (mint_state, mint_req) = mint_start(&keyset, &mint_ctx()).unwrap();
     let response = app
         .oneshot(post_json("/api/v1/mints", &mint_req))
         .await
@@ -133,7 +174,7 @@ async fn mint_endpoint_rejects_unknown_keyset_400() {
     let app = build_router(state);
 
     // Forge a request that targets a keyset the server does not know.
-    let (_state, mut req) = mint_start(&real_keyset, MERCHANT_ID, ISSUED_AT).unwrap();
+    let (_state, mut req) = mint_start(&real_keyset, &mint_ctx()).unwrap();
     req.keyset_id = chaumstar_core::KeysetId([1, 2, 3, 4, 5, 6, 7, 8]);
 
     let response = app.oneshot(post_json("/api/v1/mints", &req)).await.unwrap();
@@ -147,7 +188,7 @@ async fn review_post_then_list_round_trips() {
     let app = build_router(state);
 
     // Mint a credential via the server.
-    let (mint_state, mint_req) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
+    let (mint_state, mint_req) = mint_start(&keyset, &mint_ctx()).unwrap();
     let mint_response: MintResponse = read_json(
         app.clone()
             .oneshot(post_json("/api/v1/mints", &mint_req))
@@ -157,7 +198,12 @@ async fn review_post_then_list_round_trips() {
     )
     .await;
     let credential = mint_finish(mint_state, mint_response).unwrap();
-    let payload = publish(&credential, make_review_body("美味しかった", 5)).unwrap();
+    let payload = publish(
+        &credential,
+        make_review_body("美味しかった", 5),
+        DisclosureMask::default(),
+    )
+    .unwrap();
 
     // POST the review
     let response = app
@@ -166,13 +212,18 @@ async fn review_post_then_list_round_trips() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
+    let created: ReviewWithProofAndSth = read_json(response.into_body()).await;
+    assert_eq!(created.payload.review_body.text, "美味しかった");
+    assert_eq!(created.sth.tree_size, 1);
+    assert_eq!(created.inclusion_proof.tree_size, 1);
 
     // GET list
     let response = app.clone().oneshot(get("/api/v1/reviews")).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let list: Vec<ReviewPayload> = read_json(response.into_body()).await;
-    assert_eq!(list.len(), 1);
-    assert_eq!(list[0].review_body.text, "美味しかった");
+    let list: ReviewListResponse = read_json(response.into_body()).await;
+    assert_eq!(list.reviews.len(), 1);
+    assert_eq!(list.reviews[0].payload.review_body.text, "美味しかった");
+    assert_eq!(list.sth.tree_size, 1);
 
     // GET by hpk
     let hpk_hex = hex::encode(payload.credential_proof.hpk);
@@ -181,8 +232,11 @@ async fn review_post_then_list_round_trips() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let fetched: ReviewPayload = read_json(response.into_body()).await;
-    assert_eq!(fetched.credential_proof.hpk, payload.credential_proof.hpk);
+    let fetched: ReviewWithProofAndSth = read_json(response.into_body()).await;
+    assert_eq!(
+        fetched.payload.credential_proof.hpk,
+        payload.credential_proof.hpk
+    );
 }
 
 #[tokio::test]
@@ -191,7 +245,7 @@ async fn review_post_double_spend_returns_409() {
     let keyset = state.first_public_keyset().unwrap();
     let app = build_router(state);
 
-    let (mint_state, mint_req) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
+    let (mint_state, mint_req) = mint_start(&keyset, &mint_ctx()).unwrap();
     let mint_response: MintResponse = read_json(
         app.clone()
             .oneshot(post_json("/api/v1/mints", &mint_req))
@@ -203,7 +257,12 @@ async fn review_post_double_spend_returns_409() {
     let credential = mint_finish(mint_state, mint_response).unwrap();
 
     // First publish
-    let payload_1 = publish(&credential, make_review_body("ok", 4)).unwrap();
+    let payload_1 = publish(
+        &credential,
+        make_review_body("ok", 4),
+        DisclosureMask::default(),
+    )
+    .unwrap();
     let r1 = app
         .clone()
         .oneshot(post_json("/api/v1/reviews", &payload_1))
@@ -212,7 +271,12 @@ async fn review_post_double_spend_returns_409() {
     assert_eq!(r1.status(), StatusCode::CREATED);
 
     // Second publish with same credential
-    let payload_2 = publish(&credential, make_review_body("again", 3)).unwrap();
+    let payload_2 = publish(
+        &credential,
+        make_review_body("again", 3),
+        DisclosureMask::default(),
+    )
+    .unwrap();
     let r2 = app
         .oneshot(post_json("/api/v1/reviews", &payload_2))
         .await
@@ -226,7 +290,7 @@ async fn review_post_tampered_body_returns_400() {
     let keyset = state.first_public_keyset().unwrap();
     let app = build_router(state);
 
-    let (mint_state, mint_req) = mint_start(&keyset, MERCHANT_ID, ISSUED_AT).unwrap();
+    let (mint_state, mint_req) = mint_start(&keyset, &mint_ctx()).unwrap();
     let mint_response: MintResponse = read_json(
         app.clone()
             .oneshot(post_json("/api/v1/mints", &mint_req))
@@ -237,7 +301,12 @@ async fn review_post_tampered_body_returns_400() {
     .await;
     let credential = mint_finish(mint_state, mint_response).unwrap();
 
-    let mut payload = publish(&credential, make_review_body("great", 5)).unwrap();
+    let mut payload = publish(
+        &credential,
+        make_review_body("great", 5),
+        DisclosureMask::default(),
+    )
+    .unwrap();
     payload.review_body.text = "tampered".into();
 
     let response = app
@@ -257,4 +326,149 @@ async fn get_review_unknown_hpk_returns_404() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn registry_key_returns_32_byte_pubkey() {
+    let app = build_router(fresh_state());
+    let response = app.oneshot(get("/api/v1/registry-key")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: RegistryKeyResponse = read_json(response.into_body()).await;
+    assert_eq!(parse_registry_pubkey(&body.public_key).len(), 32);
+}
+
+#[tokio::test]
+async fn empty_log_returns_signed_zero_size_sth() {
+    let app = build_router(fresh_state());
+    let pk: RegistryKeyResponse = read_json(
+        app.clone()
+            .oneshot(get("/api/v1/registry-key"))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let pubkey = parse_registry_pubkey(&pk.public_key);
+
+    let sth: Sth = read_json(app.oneshot(get("/api/v1/sth")).await.unwrap().into_body()).await;
+    assert_eq!(sth.tree_size, 0);
+    sth.verify(&pubkey).expect("empty sth verifies");
+}
+
+#[tokio::test]
+async fn inclusion_proof_verifies_against_registry_sth() {
+    let state = fresh_state();
+    let keyset = state.first_public_keyset().unwrap();
+    let app = build_router(state);
+
+    // Get registry pubkey
+    let pk_body: RegistryKeyResponse = read_json(
+        app.clone()
+            .oneshot(get("/api/v1/registry-key"))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let pubkey = parse_registry_pubkey(&pk_body.public_key);
+
+    // Publish two reviews
+    let mut hpks: Vec<[u8; 32]> = vec![];
+    for label in ["first", "second"] {
+        let (mint_state, mint_req) = mint_start(&keyset, &mint_ctx()).unwrap();
+        let mint_response: MintResponse = read_json(
+            app.clone()
+                .oneshot(post_json("/api/v1/mints", &mint_req))
+                .await
+                .unwrap()
+                .into_body(),
+        )
+        .await;
+        let credential = mint_finish(mint_state, mint_response).unwrap();
+        let payload = publish(
+            &credential,
+            make_review_body(label, 4),
+            DisclosureMask::default(),
+        )
+        .unwrap();
+        let resp = app
+            .clone()
+            .oneshot(post_json("/api/v1/reviews", &payload))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let body: ReviewWithProofAndSth = read_json(resp.into_body()).await;
+        hpks.push(body.payload.credential_proof.hpk);
+    }
+
+    // List + verify each inclusion proof against the listed sth
+    let list: ReviewListResponse = read_json(
+        app.clone()
+            .oneshot(get("/api/v1/reviews"))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    assert_eq!(list.sth.tree_size, 2);
+    list.sth.verify(&pubkey).expect("list sth signature ok");
+    for row in &list.reviews {
+        let leaf = leaf_hash(&row.payload).expect("leaf hash");
+        row.inclusion_proof
+            .verify(&leaf, &list.sth.root_hash)
+            .expect("each inclusion proof verifies against current root");
+    }
+}
+
+#[tokio::test]
+async fn tampered_payload_breaks_inclusion_proof_against_stored_root() {
+    let state = fresh_state();
+    let keyset = state.first_public_keyset().unwrap();
+    let app = build_router(state);
+
+    let pk_body: RegistryKeyResponse = read_json(
+        app.clone()
+            .oneshot(get("/api/v1/registry-key"))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let pubkey = parse_registry_pubkey(&pk_body.public_key);
+
+    let (mint_state, mint_req) = mint_start(&keyset, &mint_ctx()).unwrap();
+    let mint_response: MintResponse = read_json(
+        app.clone()
+            .oneshot(post_json("/api/v1/mints", &mint_req))
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let credential = mint_finish(mint_state, mint_response).unwrap();
+    let payload = publish(
+        &credential,
+        make_review_body("ok", 5),
+        DisclosureMask::default(),
+    )
+    .unwrap();
+    let resp = app
+        .clone()
+        .oneshot(post_json("/api/v1/reviews", &payload))
+        .await
+        .unwrap();
+    let created: ReviewWithProofAndSth = read_json(resp.into_body()).await;
+    created.sth.verify(&pubkey).unwrap();
+
+    // Pretend the payload was modified locally: leaf hash changes,
+    // so the original inclusion proof no longer matches the STH root.
+    let mut tampered = created.payload.clone();
+    tampered.review_body.text = "tampered locally".into();
+    let bad_leaf = leaf_hash(&tampered).unwrap();
+    assert!(
+        created
+            .inclusion_proof
+            .verify(&bad_leaf, &created.sth.root_hash)
+            .is_err()
+    );
 }

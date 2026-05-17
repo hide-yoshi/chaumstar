@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::attrs::{ProductCategory, PurchaseTier};
 use crate::keyset::{KeysetId, PublicKeyset, hex_bytes_32, hex_vec};
 
 /// Wallet-side state held between `mint_start` and `mint_finish`. Contains the
@@ -21,6 +22,8 @@ pub struct MintState {
     pub keyset: PublicKeyset,
     pub merchant_id: String,
     pub issued_at: String,
+    pub purchase_tier: PurchaseTier,
+    pub product_category: ProductCategory,
 }
 
 /// Wire-format mint request sent from the reviewer's wallet to the issuer.
@@ -29,6 +32,8 @@ pub struct MintRequest {
     pub issuer_id: String,
     pub merchant_id: String,
     pub issued_at: String,
+    pub purchase_tier: PurchaseTier,
+    pub product_category: ProductCategory,
     pub keyset_id: KeysetId,
     #[serde(with = "hex_vec")]
     pub commitment_bytes: Vec<u8>,
@@ -67,4 +72,6 @@ pub struct Credential {
     pub keyset: PublicKeyset,
     pub merchant_id: String,
     pub issued_at: String,
+    pub purchase_tier: PurchaseTier,
+    pub product_category: ProductCategory,
 }
