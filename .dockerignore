@@ -1,0 +1,26 @@
+# Build artifacts
+target/
+**/target/
+crates/chaumstar-wasm/pkg/
+
+# Web build outputs
+web/node_modules/
+web/.svelte-kit/
+web/build/
+
+# VCS / editor
+.git/
+.github/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS noise
+.DS_Store
+
+# Local
+*.log
+/tmp/
+fly.toml.bak

@@ -1,0 +1,27 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# WASM build outputs
+/crates/chaumstar-wasm/pkg/
+
+# Node / SvelteKit
+/web/node_modules/
+/web/.svelte-kit/
+/web/build/
+/web/.vercel/
+/web/.env
+/web/.env.*
+!/web/.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log

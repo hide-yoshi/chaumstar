@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>chaumstar — calm mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E0E0E;
+  --bg-soft:#161616;
+  --border:rgba(255,255,255,0.07);
+  --border-strong:rgba(255,255,255,0.14);
+  --fg:#E8E8E8;
+  --fg-muted:#808080;
+  --fg-dim:#5A5A5A;
+  --accent:#B23A28;          /* 朱 / deep cinnabar */
+  --accent-soft:#5A1D14;
+  --ok:#7CFFA9;
+  --warn:#E8C547;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  background:var(--bg);color:var(--fg);
+  font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:14px;line-height:1.6;
+  font-weight:400;
+  letter-spacing:-0.005em;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+
+/* ───────── header ───────── */
+header{
+  border-bottom:1px solid var(--border);
+  padding:14px 28px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+header .logo{font-weight:600;letter-spacing:-0.02em}
+header .logo .dot{color:var(--accent)}
+
+nav{display:flex;gap:0;border:1px solid var(--border);}
+nav button{
+  background:transparent;color:var(--fg-muted);
+  border:none;border-right:1px solid var(--border);
+  padding:6px 14px;font:inherit;cursor:pointer;
+  text-transform:lowercase;font-size:12px;
+}
+nav button:last-child{border-right:none}
+nav button.active{color:var(--fg);background:var(--bg-soft);box-shadow:inset 0 -2px var(--accent)}
+
+.status-bar{
+  border-bottom:1px solid var(--border);
+  padding:6px 28px;
+  font-size:11px;color:var(--fg-dim);
+  display:flex;gap:18px;
+}
+.status-bar .ok{color:var(--ok)}
+
+/* ───────── layout ───────── */
+main{
+  display:grid;grid-template-columns:1fr 460px;
+  gap:0;min-height:calc(100vh - 84px);
+}
+
+/* ───────── left column ───────── */
+.left{padding:48px 56px 80px;max-width:780px;}
+.kicker{
+  font-size:11px;letter-spacing:0.2em;color:var(--fg-dim);
+  text-transform:uppercase;margin-bottom:14px;
+}
+h1.title{
+  font-size:30px;font-weight:600;letter-spacing:-0.025em;
+  margin-bottom:10px;
+}
+h1.title .accent{color:var(--accent)}
+.lede{
+  color:var(--fg-muted);font-size:14px;max-width:520px;
+}
+
+.divider{
+  height:1px;background:var(--border);margin:36px 0;
+  position:relative;
+}
+.divider::before{
+  content:"§";position:absolute;left:0;top:-12px;
+  background:var(--bg);padding-right:10px;
+  color:var(--fg-dim);font-size:14px;
+}
+
+.merchant-card{
+  border:1px solid var(--border);
+  padding:18px 22px;
+  margin-bottom:28px;
+  background:var(--bg-soft);
+}
+.merchant-card .row{display:flex;justify-content:space-between;align-items:baseline}
+.merchant-card h2{font-size:18px;font-weight:600;letter-spacing:-0.01em}
+.merchant-card .count{color:var(--fg-muted);font-size:12px}
+.merchant-card .keyset{color:var(--fg-dim);font-size:11px;margin-top:8px}
+
+/* reviews list */
+.reviews{display:flex;flex-direction:column;gap:0}
+.review{
+  border-top:1px solid var(--border);
+  padding:22px 4px;
+  display:grid;grid-template-columns:50px 1fr auto;
+  gap:18px;align-items:start;cursor:pointer;
+  transition:background 0.12s;
+}
+.review:hover{background:var(--bg-soft)}
+.review.active{background:var(--bg-soft);border-left:2px solid var(--accent);padding-left:14px}
+.review:last-child{border-bottom:1px solid var(--border)}
+
+.review .stars{
+  font-weight:500;color:var(--accent);font-size:14px;
+  letter-spacing:0.05em;font-variant-numeric:tabular-nums;
+}
+.review .body p{font-size:15px;color:var(--fg);line-height:1.5;margin-bottom:6px}
+.review .body .meta{font-size:11px;color:var(--fg-dim)}
+.review .body .meta .hpk{color:var(--fg-muted)}
+.review .badge{
+  font-size:10px;letter-spacing:0.15em;
+  color:var(--accent);
+  border:1px solid var(--accent);
+  padding:3px 8px;align-self:flex-start;
+  white-space:nowrap;
+  text-transform:uppercase;
+}
+
+/* ───────── right column: terminal ───────── */
+.right{
+  border-left:1px solid var(--border);
+  background:#080808;
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;
+}
+.term-header{
+  padding:12px 18px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--bg);
+}
+.term-header .title{font-size:11px;color:var(--fg-muted);letter-spacing:0.2em;text-transform:uppercase}
+.term-header .kid{font-size:11px;color:var(--fg-dim)}
+.term-body{
+  padding:22px 18px;flex:1;overflow-y:auto;
+  font-size:13px;line-height:1.7;
+}
+.term-body .grp{margin-bottom:18px}
+.term-body .grp:last-child{margin-bottom:0}
+.term-body .line{color:var(--fg-muted)}
+.term-body .prompt{color:var(--accent);user-select:none}
+.term-body .out{color:var(--fg);padding-left:14px}
+.term-body .out.ok::before{content:"✓ ";color:var(--ok)}
+.term-body .out.warn::before{content:"→ ";color:var(--warn)}
+.term-body .hash{color:var(--fg-dim)}
+.term-body .stamp{
+  margin-top:24px;padding:10px 14px;
+  border:1px solid var(--accent);
+  color:var(--accent);
+  font-weight:600;letter-spacing:0.25em;font-size:12px;
+  display:inline-block;text-transform:uppercase;
+}
+.term-body .stamp::before{content:"▌"}
+.term-body .stamp::after{content:"▐"}
+
+footer{
+  padding:24px 28px;border-top:1px solid var(--border);
+  font-size:11px;color:var(--fg-dim);
+  display:flex;justify-content:space-between;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">chaumstar<span class="dot">.</span></div>
+  <nav>
+    <button>cafe</button>
+    <button>alice</button>
+    <button class="active">bob</button>
+    <button>eve</button>
+  </nav>
+</header>
+
+<div class="status-bar">
+  <span>chaumstar / 0.1</span>
+  <span>GET /api/v1/health <span class="ok">200 ok</span></span>
+  <span>3 keysets</span>
+  <span>4 reviews</span>
+</div>
+
+<main>
+
+  <!-- left column -->
+  <section class="left">
+    <div class="kicker">reader / bob</div>
+    <h1 class="title">verified purchaser reviews<span class="accent">.</span></h1>
+    <p class="lede">anonymous reviews carrying a cryptographic seal that the reader can verify independently. nothing depends on the platform.</p>
+
+    <div class="divider"></div>
+
+    <div class="merchant-card">
+      <div class="row">
+        <h2>bean &amp; beam coffee</h2>
+        <span class="count">4 verified</span>
+      </div>
+      <div class="keyset">issuer: bean-and-beam-coffee  ·  kid_8a3f1c4d2b5e6f70  ·  PK_m (96 B G2)</div>
+    </div>
+
+    <div class="reviews">
+      <article class="review active">
+        <div class="stars">★★★★★</div>
+        <div class="body">
+          <p>ハンドドリップが秀逸。豆の個性が綺麗に出ていた。</p>
+          <div class="meta"><span class="hpk">8a3f...c2</span>  ·  2026-05-17 13:00 JST</div>
+        </div>
+        <span class="badge">verified</span>
+      </article>
+
+      <article class="review">
+        <div class="stars">★★★★☆</div>
+        <div class="body">
+          <p>店員が親切。でも席数が少ないので混む時間帯は要注意。</p>
+          <div class="meta"><span class="hpk">21de...01</span>  ·  2026-05-16 09:42 JST</div>
+        </div>
+        <span class="badge">verified</span>
+      </article>
+
+      <article class="review">
+        <div class="stars">★★★★★</div>
+        <div class="body">
+          <p>エスプレッソトニックが夏にぴったり。また行く。</p>
+          <div class="meta"><span class="hpk">9b00...ff</span>  ·  2026-05-15 17:11 JST</div>
+        </div>
+        <span class="badge">verified</span>
+      </article>
+
+      <article class="review">
+        <div class="stars">★★★☆☆</div>
+        <div class="body">
+          <p>悪くない。値段相応かな。</p>
+          <div class="meta"><span class="hpk">04a1...77</span>  ·  2026-05-14 11:05 JST</div>
+        </div>
+        <span class="badge">verified</span>
+      </article>
+    </div>
+  </section>
+
+  <!-- right column: terminal -->
+  <aside class="right">
+    <div class="term-header">
+      <span class="title">bbs+ proof log</span>
+      <span class="kid">hpk 8a3f...c2</span>
+    </div>
+    <div class="term-body">
+
+      <div class="grp">
+        <div class="line"><span class="prompt">$</span> resolve_keyset(kid_8a3f1c4d2b5e6f70)</div>
+        <div class="out ok">PK_m loaded (BLS12-381 G2, 96 B)</div>
+      </div>
+
+      <div class="grp">
+        <div class="line"><span class="prompt">$</span> canonicalize(review_body, hpk, kid)</div>
+        <div class="out warn">M_jcs <span class="hash">(286 B)</span></div>
+      </div>
+
+      <div class="grp">
+        <div class="line"><span class="prompt">$</span> ed25519.verify(hpk, M_jcs, σ_ed)</div>
+        <div class="out ok">holder signature valid</div>
+      </div>
+
+      <div class="grp">
+        <div class="line"><span class="prompt">$</span> presentation_header = sha256(M_jcs)</div>
+        <div class="out warn"><span class="hash">b1c0e35f...d7a44e91</span></div>
+      </div>
+
+      <div class="grp">
+        <div class="line"><span class="prompt">$</span> bbs.proof.verify(π, PK_m, [hpk, mid, ts])</div>
+        <div class="out ok">presentation proof valid</div>
+      </div>
+
+      <div class="grp">
+        <div class="line"><span class="prompt">$</span> registry.nullifier(hpk)</div>
+        <div class="out ok">unused</div>
+      </div>
+
+      <div class="stamp">authentic</div>
+    </div>
+  </aside>
+
+</main>
+
+<footer>
+  <span>chaumstar / 0.1  ·  bbs+ over bls12-381  ·  mit</span>
+  <span>github.com/hide-yoshi/chaumstar</span>
+</footer>
+
+</body>
+</html>

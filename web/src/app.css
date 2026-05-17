@@ -1,0 +1,162 @@
+:root {
+	--bg: #0e0e0e;
+	--bg-soft: #161616;
+	--border: rgba(255, 255, 255, 0.07);
+	--border-strong: rgba(255, 255, 255, 0.14);
+	--fg: #e8e8e8;
+	--fg-muted: #808080;
+	--fg-dim: #5a5a5a;
+	--accent: #b23a28;
+	--accent-soft: #5a1d14;
+	--ok: #7cffa9;
+	--warn: #e8c547;
+	--err: #ff6b6b;
+}
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html,
+body {
+	background: var(--bg);
+	color: var(--fg);
+	font-family: 'JetBrains Mono', ui-monospace, monospace;
+	font-size: 14px;
+	line-height: 1.6;
+	font-weight: 400;
+	letter-spacing: -0.005em;
+	min-height: 100vh;
+	-webkit-font-smoothing: antialiased;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+}
+
+input,
+textarea,
+select {
+	font: inherit;
+	color: inherit;
+	background: var(--bg-soft);
+	border: 1px solid var(--border);
+	padding: 8px 12px;
+}
+
+input:focus,
+textarea:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+textarea {
+	width: 100%;
+	resize: vertical;
+}
+
+/* Reusable building blocks */
+.btn {
+	display: inline-block;
+	padding: 8px 16px;
+	border: 1px solid var(--border-strong);
+	color: var(--fg);
+	cursor: pointer;
+	transition: background 0.12s;
+}
+.btn:hover {
+	background: var(--bg-soft);
+}
+.btn.primary {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+.btn.primary:hover {
+	background: var(--accent-soft);
+}
+.btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.kicker {
+	font-size: 11px;
+	letter-spacing: 0.2em;
+	color: var(--fg-dim);
+	text-transform: uppercase;
+}
+
+.title {
+	font-size: 30px;
+	font-weight: 600;
+	letter-spacing: -0.025em;
+	margin-bottom: 10px;
+}
+.title .accent {
+	color: var(--accent);
+}
+
+.lede {
+	color: var(--fg-muted);
+	font-size: 14px;
+	max-width: 520px;
+}
+
+.divider {
+	height: 1px;
+	background: var(--border);
+	margin: 36px 0;
+	position: relative;
+}
+.divider::before {
+	content: '§';
+	position: absolute;
+	left: 0;
+	top: -12px;
+	background: var(--bg);
+	padding-right: 10px;
+	color: var(--fg-dim);
+	font-size: 14px;
+}
+
+.section-label {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 11px;
+	letter-spacing: 0.2em;
+	color: var(--fg-muted);
+	text-transform: uppercase;
+	margin: 18px 0 10px;
+}
+.section-label::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: var(--border);
+}
+
+.hash {
+	color: var(--fg-dim);
+}
+
+.ok {
+	color: var(--ok);
+}
+.warn {
+	color: var(--warn);
+}
+.err {
+	color: var(--err);
+}

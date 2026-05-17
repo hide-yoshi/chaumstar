@@ -1,0 +1,33 @@
+[package]
+name = "chaumstar-server"
+description = "Issuer + Registry server for chaumstar (single binary, axum-based)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+chaumstar-core.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+hex.workspace = true
+
+[[bin]]
+name = "chaumstar-server"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
