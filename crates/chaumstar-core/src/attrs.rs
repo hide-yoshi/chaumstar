@@ -55,19 +55,18 @@ impl ProductCategory {
     }
 }
 
-/// Context supplied at mint time. `merchant_id` / `issued_at` are always
-/// revealed; `purchase_tier` / `product_category` are attested by the issuer
-/// and the reviewer decides at publish time whether to disclose them.
+/// Context supplied at mint time. `merchant_id` is always revealed;
+/// `purchase_tier` / `product_category` are attested by the issuer and the
+/// reviewer decides at publish time whether to disclose them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MintContext {
     pub merchant_id: String,
-    pub issued_at: String,
     pub purchase_tier: PurchaseTier,
     pub product_category: ProductCategory,
 }
 
 /// Reviewer's per-publish choice of which optional attributes to reveal.
-/// The required attributes (hpk, merchant_id, issued_at) are always disclosed.
+/// The required attributes (hpk, merchant_id) are always disclosed.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct DisclosureMask {
     #[serde(default)]

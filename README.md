@@ -18,11 +18,14 @@ chaumstar is a protocol + reference implementation for publishing reviews where:
 Built on **BBS+ Anonymous Credentials** over BLS12-381, following the IRTF
 CFRG draft `draft-irtf-cfrg-bbs-signatures`.
 
-Wire-format is currently **chaumstar/0.3**. The credential carries five signed
-attributes: `hpk`, `merchant_id`, `issued_at` (always revealed), plus
-`purchase_tier` and `product_category` which the reviewer can choose to
-selectively disclose at publish time.
-In this demo `issued_at` is always revealed for simplicity. A production design should coarsen or hide issuance time to reduce timing correlation.
+Wire-format is currently **chaumstar/0.4**. The credential carries four signed
+attributes: `hpk` and `merchant_id` (always revealed), plus `purchase_tier`
+and `product_category` which the reviewer can choose to selectively disclose
+at publish time.
+The credential does not carry an issuance timestamp: revealing one would let
+the issuer correlate publication time with mint time and weaken the
+unlinkability guarantee. Key rotation / expiry is expressed through the
+issuer's keyset (`kid`) instead.
 `hpk` MUST be freshly generated per credential. It is not a long-term user identity key.
 
 The Registry maintains an append-only RFC 6962 Merkle log of published

@@ -31,10 +31,8 @@
 	async function mintFreshCredential(
 		ks: PublicKeyset
 	): Promise<{ credential: Credential; ks: PublicKeyset }> {
-		const issuedAt = new Date().toISOString().replace(/\.\d+/, '');
 		const ctx: MintContext = {
 			merchant_id: ks.merchant_id,
-			issued_at: issuedAt,
 			purchase_tier: 'mid',
 			product_category: 'drinks'
 		};
@@ -64,13 +62,11 @@
 			await pushLine({ kind: 'hr' });
 
 			const ts = new Date().toISOString().replace(/\.\d+/, '');
-			const issuedAt = (credential as { issued_at: string }).issued_at;
 			const body = {
 				text: '[eve] double-spend trial #1',
 				rating: 3,
 				merchant_id: ks.merchant_id,
 				issuer_id: ks.issuer_id,
-				issued_at: issuedAt,
 				timestamp: ts
 			};
 
@@ -146,14 +142,12 @@
 				tip: 'まず通常通り credential を発行して、有効な payload を作る。'
 			});
 			const { credential, ks } = await mintFreshCredential(keysets[0]);
-			const issuedAt = (credential as { issued_at: string }).issued_at;
 			const ts = new Date().toISOString().replace(/\.\d+/, '');
 			const body = {
 				text: 'great service',
 				rating: 5,
 				merchant_id: ks.merchant_id,
 				issuer_id: ks.issuer_id,
-				issued_at: issuedAt,
 				timestamp: ts
 			};
 			const payload = await publishReview(credential, body, NO_DISCLOSURE);
@@ -232,14 +226,12 @@
 				tip: '実在の credential を発行してから、証明部分だけ壊して投稿する。'
 			});
 			const { credential, ks } = await mintFreshCredential(keysets[0]);
-			const issuedAt = (credential as { issued_at: string }).issued_at;
 			const ts = new Date().toISOString().replace(/\.\d+/, '');
 			const body = {
 				text: '[eve] forged payload',
 				rating: 5,
 				merchant_id: ks.merchant_id,
 				issuer_id: ks.issuer_id,
-				issued_at: issuedAt,
 				timestamp: ts
 			};
 			const payload = await publishReview(credential, body, NO_DISCLOSURE);

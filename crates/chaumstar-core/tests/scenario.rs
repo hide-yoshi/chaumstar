@@ -1,4 +1,4 @@
-//! End-to-end scenario tests for chaumstar-core (v0.2 with selective disclosure).
+//! End-to-end scenario tests for chaumstar-core (selective disclosure).
 //!
 //! Acceptance criteria: a reviewer can mint a credential with attestable
 //! attributes (purchase_tier, product_category), then publish a review choosing
@@ -13,7 +13,6 @@ use chaumstar_core::{
 
 const ISSUER_ID: &str = "bean-and-beam-coffee";
 const MERCHANT_ID: &str = "main-store";
-const ISSUED_AT: &str = "2026-05-17T10:00:00Z";
 const REVIEW_TIMESTAMP: &str = "2026-05-17T13:00:00Z";
 
 fn make_review_body(text: &str, rating: u8) -> ReviewBody {
@@ -22,7 +21,6 @@ fn make_review_body(text: &str, rating: u8) -> ReviewBody {
         rating,
         merchant_id: MERCHANT_ID.to_string(),
         issuer_id: ISSUER_ID.to_string(),
-        issued_at: ISSUED_AT.to_string(),
         timestamp: REVIEW_TIMESTAMP.to_string(),
     }
 }
@@ -30,7 +28,6 @@ fn make_review_body(text: &str, rating: u8) -> ReviewBody {
 fn mint_ctx(tier: PurchaseTier, category: ProductCategory) -> MintContext {
     MintContext {
         merchant_id: MERCHANT_ID.into(),
-        issued_at: ISSUED_AT.into(),
         purchase_tier: tier,
         product_category: category,
     }

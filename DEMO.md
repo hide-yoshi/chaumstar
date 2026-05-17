@@ -1,9 +1,10 @@
-# chaumstar Demo — v0.3 (draft)
+# chaumstar Demo — v0.4 (draft)
 
 > Single-page web demo. "Hacker News に投稿された1分動画で何が起きてるか伝わる" を目標にする。
 >
 > - v0.2: **selective disclosure** (`purchase_tier` / `product_category`)
 > - v0.3: **Registry transparency log** (Merkle log + 署名付き STH + inclusion proof) で Registry 側の削除 / 改ざんを Reader が検出可能に
+> - v0.4: `issued_at` を credential 属性から撤去。 mint 時刻を常時開示する設計は Issuer-side unlinkability を弱めるため
 
 ---
 
@@ -124,7 +125,7 @@ Single-page で persona ボタンを切り替えながら flow を進める。
 - 任意のレビューをクリック → 「🔍 検証ログ」がスライドオープン
   - ✓ Keyset resolved: kid_abc123 → PK_m (BLS12-381 G₂)
   - ✓ Disclosed indexes computed from payload: [0, 1, 2] (tier disclosed)
-  - ✓ BBS+ blind proof verified: issuer signed (hpk, merchant_id, issued_at, tier=mid)
+  - ✓ BBS+ blind proof verified: issuer signed (hpk, merchant_id, tier=mid)
   - ✓ Presentation header binds proof to review body + disclosure
   - ✓ Ed25519 sig verified: review text untampered
   - ✓ Nullifier check: hpk unused in registry
@@ -149,8 +150,8 @@ Single-page で persona ボタンを切り替えながら flow を進める。
 [Alice]  "📷 QR をスキャン"
          右ペイン:
            1. (hsk, hpk) ← Ed25519 keygen          ✓
-           2. m₁ = H_s(hpk), m₂ = H_s(mid),
-              m₃ = H_s(issued_at)                  ✓
+           2. m₁ = H_s(hpk), m₂ = H_s(merchant),
+              m₃ = H_s(tier), m₄ = H_s(category)   ✓
            3. ρ ← random Z_r                       ✓
            4. C_blind = [m₁]H₁ + [ρ]H₀             ✓
            5. pok_commit = PoK(m₁, ρ)              ✓
@@ -158,7 +159,7 @@ Single-page で persona ボタンを切り替えながら flow を進める。
                 (C_blind, pok, merchant_id, ...)   ✓
            7. ← blind_σ                            ✓
            8. σ = unblind(blind_σ, ρ)              ✓
-           9. bbs_verify(σ, [m₁,m₂,m₃], PK_m)      ✓
+           9. bbs_verify(σ, [m₁,m₂,m₃,m₄], PK_m)   ✓
          Wallet に credential 追加 (σ は wallet 内に秘匿)
          
 [Alice]  レビュー: "ハンドドリップが秀逸 ⭐⭐⭐⭐⭐"
@@ -167,7 +168,7 @@ Single-page で persona ボタンを切り替えながら flow を進める。
            1. M = JCS(review_body + hpk + kid)     ✓
            2. presentation_header = SHA256(M)      ✓
            3. π = bbs_create_proof(
-                 σ, [m₁,m₂,m₃], all_revealed,
+                 σ, [m₁,m₂,m₃,m₄], disclose_subset,
                  presentation_header, PK_m)        ✓
            4. σ_ed = Ed25519.sign(hsk, M)          ✓
            5. → POST /api/registry/publish         ✓
@@ -242,7 +243,7 @@ Single-page で persona ボタンを切り替えながら flow を進める。
          (BBS+ proof は元の tier=mid で生成されている)
          
          → POST /api/v1/reviews
-         → verifier rebuilds disclosed_messages = [merchant_id, issued_at, "high"]
+         → verifier rebuilds disclosed_messages = [merchant_id, "high"]
          → bbs_blind_proof_verify with disclosed "high"
          → proof hash mismatch (proof was generated for "mid")
          → FAIL

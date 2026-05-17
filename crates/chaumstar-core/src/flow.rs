@@ -31,7 +31,6 @@ pub fn mint_start(
     let mint_request = MintRequest {
         issuer_id: keyset.issuer_id.clone(),
         merchant_id: ctx.merchant_id.clone(),
-        issued_at: ctx.issued_at.clone(),
         purchase_tier: ctx.purchase_tier,
         product_category: ctx.product_category,
         keyset_id: keyset.keyset_id.clone(),
@@ -44,7 +43,6 @@ pub fn mint_start(
         blind_factor_bytes: blind_factor.to_bytes(),
         keyset: keyset.clone(),
         merchant_id: ctx.merchant_id.clone(),
-        issued_at: ctx.issued_at.clone(),
         purchase_tier: ctx.purchase_tier,
         product_category: ctx.product_category,
     };
@@ -72,7 +70,6 @@ pub fn mint_finish(state: MintState, response: MintResponse) -> Result<Credentia
 
     let revealed_messages: Vec<Vec<u8>> = vec![
         state.merchant_id.as_bytes().to_vec(),
-        state.issued_at.as_bytes().to_vec(),
         state.purchase_tier.as_bytes().to_vec(),
         state.product_category.as_bytes().to_vec(),
     ];
@@ -94,7 +91,6 @@ pub fn mint_finish(state: MintState, response: MintResponse) -> Result<Credentia
         blind_signature: sig_bytes.to_vec(),
         keyset: state.keyset,
         merchant_id: state.merchant_id,
-        issued_at: state.issued_at,
         purchase_tier: state.purchase_tier,
         product_category: state.product_category,
     })
@@ -133,7 +129,6 @@ pub fn publish(
 
     let revealed_messages: Vec<Vec<u8>> = vec![
         credential.merchant_id.as_bytes().to_vec(),
-        credential.issued_at.as_bytes().to_vec(),
         credential.purchase_tier.as_bytes().to_vec(),
         credential.product_category.as_bytes().to_vec(),
     ];
@@ -205,11 +200,9 @@ pub fn verify_proof_only(
 
     let presentation_header = Sha256::digest(&m_jcs).to_vec();
 
-    // Rebuild disclosed_messages in the canonical [merchant, issued, tier?, category?] order.
-    let mut disclosed_messages: Vec<Vec<u8>> = vec![
-        payload.review_body.merchant_id.as_bytes().to_vec(),
-        payload.review_body.issued_at.as_bytes().to_vec(),
-    ];
+    // Rebuild disclosed_messages in the canonical [merchant, tier?, category?] order.
+    let mut disclosed_messages: Vec<Vec<u8>> =
+        vec![payload.review_body.merchant_id.as_bytes().to_vec()];
     if let Some(t) = disclosed_tier {
         disclosed_messages.push(t.as_bytes().to_vec());
     }
@@ -221,8 +214,8 @@ pub fn verify_proof_only(
     let disclosed_indexes =
         build_disclosed_indexes_from_options(disclosed_tier, disclosed_category);
     let disclosed_commitment_indexes: [usize; 1] = [0];
-    // Total message vector length is fixed at 4 (merchant, issued, tier, category).
-    let total_messages = 4usize;
+    // Total message vector length is fixed at 3 (merchant, tier, category).
+    let total_messages = 3usize;
 
     proof
         .blind_proof_verify(
@@ -265,12 +258,12 @@ fn build_disclosed_indexes(mask: DisclosureMask) -> Vec<usize> {
 }
 
 fn build_disclosed_indexes_from_options<A, B>(tier: Option<A>, category: Option<B>) -> Vec<usize> {
-    let mut out = vec![0usize, 1];
+    let mut out = vec![0usize];
     if tier.is_some() {
-        out.push(2);
+        out.push(1);
     }
     if category.is_some() {
-        out.push(3);
+        out.push(2);
     }
     out
 }
@@ -282,30 +275,27 @@ mod tests {
 
     #[test]
     fn disclosed_indexes_for_each_mask() {
-        assert_eq!(
-            build_disclosed_indexes(DisclosureMask::default()),
-            vec![0, 1]
-        );
+        assert_eq!(build_disclosed_indexes(DisclosureMask::default()), vec![0]);
         assert_eq!(
             build_disclosed_indexes(DisclosureMask {
                 disclose_tier: true,
                 disclose_category: false
             }),
-            vec![0, 1, 2]
+            vec![0, 1]
         );
         assert_eq!(
             build_disclosed_indexes(DisclosureMask {
                 disclose_tier: false,
                 disclose_category: true
             }),
-            vec![0, 1, 3]
+            vec![0, 2]
         );
         assert_eq!(
             build_disclosed_indexes(DisclosureMask {
                 disclose_tier: true,
                 disclose_category: true
             }),
-            vec![0, 1, 2, 3]
+            vec![0, 1, 2]
         );
     }
 
@@ -313,11 +303,11 @@ mod tests {
     fn disclosed_indexes_from_options_match_mask() {
         assert_eq!(
             build_disclosed_indexes_from_options::<PurchaseTier, &str>(None, None),
-            vec![0, 1]
+            vec![0]
         );
         assert_eq!(
             build_disclosed_indexes_from_options(Some(PurchaseTier::Mid), Some("x")),
-            vec![0, 1, 2, 3]
+            vec![0, 1, 2]
         );
     }
 }

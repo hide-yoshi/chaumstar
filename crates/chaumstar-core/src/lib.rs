@@ -6,7 +6,7 @@
 //!
 //! See `PROTOCOL.md`, `CRYPTO.md` in the workspace root for the specification.
 
-pub const PROTOCOL_VERSION: &str = "chaumstar/0.3";
+pub const PROTOCOL_VERSION: &str = "chaumstar/0.4";
 
 mod attrs;
 mod credential;

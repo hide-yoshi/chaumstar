@@ -13,7 +13,6 @@ pub struct ReviewBody {
     pub rating: u8,
     pub merchant_id: String,
     pub issuer_id: String,
-    pub issued_at: String,
     pub timestamp: String,
 }
 
@@ -68,7 +67,6 @@ pub(crate) fn canonical_message(
             "rating": body.rating,
             "merchant_id": body.merchant_id,
             "issuer_id": body.issuer_id,
-            "issued_at": body.issued_at,
             "timestamp": body.timestamp,
         },
         "credential": {

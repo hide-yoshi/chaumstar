@@ -1,4 +1,4 @@
-// TypeScript shapes mirroring chaumstar-core's wire types (v0.2).
+// TypeScript shapes mirroring chaumstar-core's wire types.
 // MintState and Credential are passed verbatim through the WASM boundary;
 // we keep them statically typed for safer composer / wallet code.
 
@@ -7,7 +7,6 @@ export type ProductCategory = 'drinks' | 'food' | 'merch';
 
 export interface MintContext {
 	merchant_id: string;
-	issued_at: string;
 	purchase_tier: PurchaseTier;
 	product_category: ProductCategory;
 }
@@ -32,7 +31,6 @@ export interface PublicKeyset {
 export interface MintRequest {
 	issuer_id: string;
 	merchant_id: string;
-	issued_at: string;
 	purchase_tier: PurchaseTier;
 	product_category: ProductCategory;
 	keyset_id: string;
@@ -48,7 +46,6 @@ export interface ReviewBody {
 	rating: number;
 	merchant_id: string;
 	issuer_id: string;
-	issued_at: string;
 	timestamp: string;
 }
 
@@ -108,7 +105,6 @@ export interface Credential {
 	blind_signature: string;
 	keyset: PublicKeyset;
 	merchant_id: string;
-	issued_at: string;
 	purchase_tier: PurchaseTier;
 	product_category: ProductCategory;
 }

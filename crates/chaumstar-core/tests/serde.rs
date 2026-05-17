@@ -13,7 +13,6 @@ use chaumstar_core::{
 
 const ISSUER_ID: &str = "bean-and-beam-coffee";
 const MERCHANT_ID: &str = "main-store";
-const ISSUED_AT: &str = "2026-05-17T10:00:00Z";
 const REVIEW_TIMESTAMP: &str = "2026-05-17T13:00:00Z";
 
 fn make_review_body() -> ReviewBody {
@@ -22,7 +21,6 @@ fn make_review_body() -> ReviewBody {
         rating: 5,
         merchant_id: MERCHANT_ID.into(),
         issuer_id: ISSUER_ID.into(),
-        issued_at: ISSUED_AT.into(),
         timestamp: REVIEW_TIMESTAMP.into(),
     }
 }
@@ -30,7 +28,6 @@ fn make_review_body() -> ReviewBody {
 fn mint_ctx() -> MintContext {
     MintContext {
         merchant_id: MERCHANT_ID.into(),
-        issued_at: ISSUED_AT.into(),
         purchase_tier: PurchaseTier::Mid,
         product_category: ProductCategory::Drinks,
     }
@@ -97,7 +94,6 @@ fn mint_request_json_round_trip() {
     let parsed: MintRequest = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.issuer_id, mint_request.issuer_id);
     assert_eq!(parsed.merchant_id, mint_request.merchant_id);
-    assert_eq!(parsed.issued_at, mint_request.issued_at);
     assert_eq!(parsed.keyset_id, mint_request.keyset_id);
     assert_eq!(parsed.commitment_bytes, mint_request.commitment_bytes);
 }
@@ -141,7 +137,6 @@ fn credential_json_round_trip_preserves_secret_material() {
     assert_eq!(parsed.blind_factor, credential.blind_factor);
     assert_eq!(parsed.blind_signature, credential.blind_signature);
     assert_eq!(parsed.merchant_id, credential.merchant_id);
-    assert_eq!(parsed.issued_at, credential.issued_at);
     assert_eq!(parsed.purchase_tier, credential.purchase_tier);
     assert_eq!(parsed.product_category, credential.product_category);
     assert_eq!(parsed.keyset.keyset_id, credential.keyset.keyset_id);

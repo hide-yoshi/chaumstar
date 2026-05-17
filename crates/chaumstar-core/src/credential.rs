@@ -21,7 +21,6 @@ pub struct MintState {
     pub blind_factor_bytes: [u8; 32],
     pub keyset: PublicKeyset,
     pub merchant_id: String,
-    pub issued_at: String,
     pub purchase_tier: PurchaseTier,
     pub product_category: ProductCategory,
 }
@@ -31,7 +30,6 @@ pub struct MintState {
 pub struct MintRequest {
     pub issuer_id: String,
     pub merchant_id: String,
-    pub issued_at: String,
     pub purchase_tier: PurchaseTier,
     pub product_category: ProductCategory,
     pub keyset_id: KeysetId,
@@ -71,7 +69,6 @@ pub struct Credential {
 
     pub keyset: PublicKeyset,
     pub merchant_id: String,
-    pub issued_at: String,
     pub purchase_tier: PurchaseTier,
     pub product_category: ProductCategory,
 }

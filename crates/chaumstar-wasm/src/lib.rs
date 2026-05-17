@@ -31,8 +31,8 @@ struct MintStartResult {
 /// Start a mint: generate a fresh Ed25519 keypair, build the BBS+ commitment,
 /// and return both the wallet-side state and the wire-format request.
 ///
-/// `ctx` must serialize to a `MintContext` (`merchant_id`, `issued_at`,
-/// `purchase_tier`, `product_category`).
+/// `ctx` must serialize to a `MintContext` (`merchant_id`, `purchase_tier`,
+/// `product_category`).
 #[wasm_bindgen(js_name = mintStart)]
 pub fn mint_start(keyset: JsValue, ctx: JsValue) -> Result<JsValue, JsError> {
     let keyset: PublicKeyset = serde_wasm_bindgen::from_value(keyset)

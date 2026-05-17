@@ -71,23 +71,24 @@
 
 ---
 
-## 4. Message vector definition (v0.2)
+## 4. Message vector definition
 
-各 credential は次の **5-message vector** に BBS+ 署名:
+各 credential は次の **4-message vector** に BBS+ 署名:
 
 | Index | Name | Source | Type | Encoding for `H_s` | Disclosure |
 |---|---|---|---|---|---|
 | 1 | `hpk` | reviewer (committed) | Ed25519 pubkey (32B) | raw 32 bytes | always revealed (nullifier) |
 | 2 | `merchant_id` | issuer | UTF-8 string | UTF-8 bytes | always revealed |
-| 3 | `issued_at` | issuer | RFC3339 timestamp | UTF-8 bytes | always revealed |
-| 4 | `purchase_tier` | issuer | `low` / `mid` / `high` | UTF-8 bytes of the literal | reviewer-controlled |
-| 5 | `product_category` | issuer | `drinks` / `food` / `merch` | UTF-8 bytes of the literal | reviewer-controlled |
+| 3 | `purchase_tier` | issuer | `low` / `mid` / `high` | UTF-8 bytes of the literal | reviewer-controlled |
+| 4 | `product_category` | issuer | `drinks` / `food` / `merch` | UTF-8 bytes of the literal | reviewer-controlled |
 
 zkryptium 内では:
 - `committed_messages = [hpk]`
-- `messages = [merchant_id, issued_at, purchase_tier, product_category]` (issuer-known)
+- `messages = [merchant_id, purchase_tier, product_category]` (issuer-known)
 - `disclosed_commitment_indexes = [0]` 固定
-- `disclosed_indexes ⊆ [0,1,2,3]`、必ず `0` と `1` を含む
+- `disclosed_indexes ⊆ [0,1,2]`、必ず `0` を含む
+
+v0.3 まで credential に `issued_at` を含めていたが、 publication 時に常時開示する設計は Issuer 側 mint log の発行時刻と publish 時刻のタイミング相関で reviewer を再特定可能にしてしまい、 G2 (Issuer-side unlinkability) を弱める。 v0.4 で credential 属性としては撤去し、 credential の有効期間が必要なら issuer の keyset (`kid`) を周期的に rotate する設計に寄せる。
 
 各メッセージは BBS spec の `messages_to_scalars` 関数で `Z_r` の scalar に変換される:
 
@@ -111,7 +112,7 @@ Issuer は merchant ごとに BBS+ keypair を持つ:
 ### 5.2 Reviewer の commitment 生成
 
 ```
-Inputs:  hpk (32B), MintContext { merchant_id, issued_at, purchase_tier, product_category }
+Inputs:  hpk (32B), MintContext { merchant_id, purchase_tier, product_category }
 Outputs: (commitment, blinding, pok_commitment)
 
 1. m₁ = hash_to_scalar(hpk)
@@ -136,18 +137,17 @@ Outputs: blind_signature
 2. Verify purchase context (out-of-scope: 会計実態の確認)
 
 3. m₂ = hash_to_scalar(merchant_id_bytes)
-4. m₃ = hash_to_scalar(issued_at_bytes)
-5. m₄ = hash_to_scalar(purchase_tier_bytes)                // "low" / "mid" / "high"
-6. m₅ = hash_to_scalar(product_category_bytes)             // "drinks" / "food" / "merch"
+4. m₃ = hash_to_scalar(purchase_tier_bytes)                // "low" / "mid" / "high"
+5. m₄ = hash_to_scalar(product_category_bytes)             // "drinks" / "food" / "merch"
 
-7. blind_σ = bbs_blind_sign(
+6. blind_σ = bbs_blind_sign(
        SK_m, PK_m,
        commitment: C_blind,
-       known_messages: [(2, m₂), (3, m₃), (4, m₄), (5, m₅)],
-       generators: [H₁, H₂, H₃, H₄, H₅]
+       known_messages: [(2, m₂), (3, m₃), (4, m₄)],
+       generators: [H₁, H₂, H₃, H₄]
    )
 
-8. Return blind_σ = (A, e)
+7. Return blind_σ = (A, e)
 ```
 
 `purchase_tier` / `product_category` は **issuer が judgement で決める**。 reviewer の希望値はあくまで suggestion。 これにより「reviewer が tier=high と勝手に名乗る」攻撃を防ぐ (BBS+ proof は issuer が署名した値しか検証時に通らない)。
@@ -156,12 +156,12 @@ Outputs: blind_signature
 
 ```
 Inputs:  (blind_σ = (A_blind, e), ρ, generators)
-Outputs: σ (clean BBS+ signature on (m₁, ..., m₅))
+Outputs: σ (clean BBS+ signature on (m₁, ..., m₄))
 
 1. A = A_blind                                  // BBS+ では A は変化しない
 2. σ = (A, e)
-3. Verify locally: bbs_verify(σ, [m₁, m₂, m₃, m₄, m₅], PK_m)
-4. Save σ + cleartext (merchant_id, issued_at, tier, category) in credential
+3. Verify locally: bbs_verify(σ, [m₁, m₂, m₃, m₄], PK_m)
+4. Save σ + cleartext (merchant_id, tier, category) in credential
 ```
 
 (Pedersen commitment 形式の場合、unblind は単に `ρ` を覚えておく操作)
@@ -182,30 +182,30 @@ Outputs: σ (clean BBS+ signature on (m₁, ..., m₅))
 Reviewer は手元の `σ` を直接公開せず、以下を ZK で証明:
 
 ```
-Statement: ∃ σ such that bbs_verify(σ, [m₁..m₅], PK_m) = true
+Statement: ∃ σ such that bbs_verify(σ, [m₁..m₄], PK_m) = true
            ∧ disclosed subset is revealed at chosen values
            ∧ undisclosed subset stays hidden
 ```
 
-開示集合は最小 `{m₁ (hpk), m₂ (merchant_id), m₃ (issued_at)}`、 オプションで `m₄ (tier)` / `m₅ (category)` を追加。
+開示集合は最小 `{m₁ (hpk), m₂ (merchant_id)}`、 オプションで `m₃ (tier)` / `m₄ (category)` を追加。
 
 ### 6.2 生成 (Reviewer)
 
 ```
-Inputs:  σ, [m₁..m₅], PK_m, presentation_header, DisclosureMask
+Inputs:  σ, [m₁..m₄], PK_m, presentation_header, DisclosureMask
 Output:  proof π
 
 1. Build disclosed_indexes from mask:
-       base = [0, 1]                      (merchant_id, issued_at — always)
-       + [2] if mask.disclose_tier
-       + [3] if mask.disclose_category
+       base = [0]                         (merchant_id — always)
+       + [1] if mask.disclose_tier
+       + [2] if mask.disclose_category
    disclosed_commitment_indexes = [0]    (hpk — always)
 
 2. proof = bbs_blind_proof_gen(
        signature: σ,
        header: HEADER,                   // chaumstar protocol-level header
        presentation_header: H(M_jcs),    // ← レビュー本文 + 開示属性への bind
-       messages:           [m₂, m₃, m₄, m₅],
+       messages:           [m₂, m₃, m₄],
        committed_messages: [m₁],
        disclosed_indexes,
        disclosed_commitment_indexes: [0],
@@ -226,11 +226,11 @@ Output:  VALID | INVALID
 
 1. Reconstruct M_jcs from payload, compute presentation_header = H(M_jcs)
 2. Build disclosed_indexes from payload.credential_proof:
-       [0, 1]
-       + [2] if payload.credential_proof.purchase_tier is Some
-       + [3] if payload.credential_proof.product_category is Some
+       [0]
+       + [1] if payload.credential_proof.purchase_tier is Some
+       + [2] if payload.credential_proof.product_category is Some
 3. Build disclosed_messages in same order:
-       [merchant_id, issued_at,
+       [merchant_id,
         (tier if disclosed),
         (category if disclosed)]
 4. result = bbs_blind_proof_verify(
@@ -255,14 +255,14 @@ Output:  VALID | INVALID
 
 Mint 時、Issuer の log:
 ```
-log[i] = (C_blind_i, pok_commit_i, merchant_id_i, issued_at_i,
+log[i] = (C_blind_i, pok_commit_i, merchant_id_i,
           blind_σ_i = (A_blind_i, e_i),
           purchaser_info_i, timestamp_i)
 ```
 
 Publish 時、Issuer が見える public payload:
 ```
-payload = (review_body, hpk, merchant_id, issued_at, π_bbs, σ_ed)
+payload = (review_body, hpk, merchant_id, π_bbs, σ_ed)
 ```
 
 Issuer が linking を試みる:
@@ -309,20 +309,19 @@ Rust 実装は `serde_jcs` crate を想定。
 - 整数は I-JSON 範囲 (`[-(2^53-1), 2^53-1]`) のみ使用
 - floating point は使用しない (rating は integer 1-5)
 
-### 7.3 署名対象 `M` の構造 (v0.2)
+### 7.3 署名対象 `M` の構造
 
 Reviewer の Ed25519 sig 対象 (BBS+ presentation_header のソースでもある):
 
 ```json
 {
-  "v": "chaumstar/0.2",
+  "v": "chaumstar/0.4",
   "type": "review",
   "review_body": {
     "text": "...",
     "rating": 5,
     "merchant_id": "...",
     "issuer_id": "...",
-    "issued_at": "2026-05-17T12:34:56Z",
     "timestamp": "2026-05-17T13:00:00Z"
   },
   "credential": {

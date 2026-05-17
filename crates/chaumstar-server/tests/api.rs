@@ -20,7 +20,6 @@ use tower::ServiceExt;
 
 const ISSUER_ID: &str = "bean-and-beam-coffee";
 const MERCHANT_ID: &str = "main-store";
-const ISSUED_AT: &str = "2026-05-17T10:00:00Z";
 const REVIEW_TIMESTAMP: &str = "2026-05-17T13:00:00Z";
 
 fn make_review_body(text: &str, rating: u8) -> ReviewBody {
@@ -29,7 +28,6 @@ fn make_review_body(text: &str, rating: u8) -> ReviewBody {
         rating,
         merchant_id: MERCHANT_ID.into(),
         issuer_id: ISSUER_ID.into(),
-        issued_at: ISSUED_AT.into(),
         timestamp: REVIEW_TIMESTAMP.into(),
     }
 }
@@ -37,7 +35,6 @@ fn make_review_body(text: &str, rating: u8) -> ReviewBody {
 fn mint_ctx() -> MintContext {
     MintContext {
         merchant_id: MERCHANT_ID.into(),
-        issued_at: ISSUED_AT.into(),
         purchase_tier: PurchaseTier::Mid,
         product_category: ProductCategory::Drinks,
     }

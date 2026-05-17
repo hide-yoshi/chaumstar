@@ -23,7 +23,6 @@
 		credential: Credential;
 		hpk: string;
 		merchantId: string;
-		issuedAt: string;
 		purchaseTier: PurchaseTier;
 		productCategory: ProductCategory;
 		used: boolean;
@@ -81,10 +80,8 @@
 		busy = true;
 		resetTerm(`mint ← ${receipt.keyset.merchant_id} (${receipt.tier}/${receipt.category})`);
 		try {
-			const issuedAt = new Date().toISOString().replace(/\.\d+/, '');
 			const ctx: MintContext = {
 				merchant_id: receipt.keyset.merchant_id,
-				issued_at: issuedAt,
 				purchase_tier: receipt.tier,
 				product_category: receipt.category
 			};
@@ -135,7 +132,6 @@
 				credential,
 				hpk: credential.hpk,
 				merchantId: credential.merchant_id,
-				issuedAt: credential.issued_at,
 				purchaseTier: credential.purchase_tier,
 				productCategory: credential.product_category,
 				used: false
@@ -173,7 +169,6 @@
 				rating,
 				merchant_id: entry.merchantId,
 				issuer_id: keysets.find((k) => k.merchant_id === entry.merchantId)?.issuer_id ?? '',
-				issued_at: entry.issuedAt,
 				timestamp: ts
 			};
 			const mask = {
