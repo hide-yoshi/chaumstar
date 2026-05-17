@@ -22,6 +22,8 @@ Wire-format is currently **chaumstar/0.3**. The credential carries five signed
 attributes: `hpk`, `merchant_id`, `issued_at` (always revealed), plus
 `purchase_tier` and `product_category` which the reviewer can choose to
 selectively disclose at publish time.
+In this demo `issued_at` is always revealed for simplicity. A production design should coarsen or hide issuance time to reduce timing correlation.
+`hpk` MUST be freshly generated per credential. It is not a long-term user identity key.
 
 The Registry maintains an append-only RFC 6962 Merkle log of published
 reviews and signs the tree head with a per-process Ed25519 key. Readers
